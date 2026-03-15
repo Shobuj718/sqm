@@ -145,6 +145,7 @@ class PagesController extends Controller
 
     public function webhook(Request $request)
     {
+        dd($request->all());
         \Log::info("message");
         if ($request->hub_verify_token ===  $this->verifyToken) {
             return $request->hub_challenge;
