@@ -14,6 +14,8 @@ class PagesController extends Controller
 
     private $userId;
 
+    private $verifyToken;
+
     public function __construct()
     {
         $this->accessToken = 'EAAQacaaqBVMBQ4qdprjQPLmcMveTzJhBZBZBI1d7KcXFP6NU3rmLtOXBCaMjsMghAMGOn6vBQwLzCtWh8ZBXRNwvCZCHWBLSoSIiGHrcZA5DshseCqy5S8otzsGu3EO3br5oyv8ZB4yhaZADkERVO5RIzV61pQoBXSuSLpbHx57SfXV6CXi6sppUi3t47Pn';
@@ -21,6 +23,10 @@ class PagesController extends Controller
         $this->pagesToken = 'EAAQacaaqBVMBQzZCIHyzjvk1MCYrattJkcDtM2vCgAOLhZA6OFCVnKkKZCWrjCfWS25BDZCV3iEjisjOJHaXxhIRcEXHBJG5hpAFX67fvNZCmZBT0auvqzaMNKJPH4STeOnxMWBPjTdvZCAXudJ1VAY6rZCvqWvglxDqsAaQHDw9G9ZCYKu4P4E36IBlOUn8RgQBeb4EcXw1Q';
 
         $this->userId = '122125172163000307';
+
+        $this->verifyToken = 'test-token';
+
+
     }
 
     public function index()
@@ -139,7 +145,8 @@ class PagesController extends Controller
 
     public function webhook(Request $request)
     {
-        if ($request->hub_verify_token === env('FACEBOOK_VERIFY_TOKEN')) {
+        \Log::info("message");
+        if ($request->hub_verify_token ===  $this->verifyToken) {
             return $request->hub_challenge;
         }
 
