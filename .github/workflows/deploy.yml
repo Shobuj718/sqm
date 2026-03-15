@@ -11,23 +11,10 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
-
-      # - name: Set up Node.js 16
-      #   uses: actions/setup-node@v2
-      #   with:
-      #     node-version: 16
-
-      # - name: Install dependencies
-      #   run: npm install
-
-      # - name: Set Git pull merge strategy
-      #   run: git config pull.rebase false
-
-      # - name: Build assets
-      #   run: npm run production
+        uses: actions/checkout@v4
 
       - name: Deploy to server
         uses: appleboy/ssh-action@master
@@ -43,5 +30,5 @@ jobs:
             # Fix for Git "dubious ownership" error
             git config --global --add safe.directory /home1/micro1
 
-            # Run your deployment script
+            # Run deployment script
             ./.scripts/deploy.sh
