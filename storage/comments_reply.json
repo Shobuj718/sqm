@@ -1,0 +1,42 @@
+[
+  {
+    "comment": "Hello!",
+    "reply": "Hi there! Thanks for your comment."
+  },
+  {
+    "comment": "How are you?",
+    "reply": "We are great! How about you?"
+  },
+  {
+    "comment": "Good job!",
+    "reply": "Thank you for your support!"
+  },
+  {
+    "comment": "Can you help me?",
+    "reply": "Sure! What do you need help with?"
+  },
+  {
+    "comment": "Nice post!",
+    "reply": "Thanks! We really appreciate it."
+  },
+  {
+    "comment": "Where can I find more info?",
+    "reply": "You can check our website for more details."
+  },
+  {
+    "comment": "I love this!",
+    "reply": "Glad you liked it! 😊"
+  },
+  {
+    "comment": "This is amazing!",
+    "reply": "Thank you! We are happy you enjoyed it."
+  },
+  {
+    "comment": "Any updates?",
+    "reply": "We will post updates soon. Stay tuned!"
+  },
+  {
+    "comment": "Thank you!",
+    "reply": "You're welcome! Happy to help."
+  }
+]
