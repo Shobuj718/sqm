@@ -137,7 +137,7 @@ class PagesController extends Controller
     }
 
 
-    public function webhook()
+    public function webhook(Request $request)
     {
         if ($request->hub_verify_token === env('FACEBOOK_VERIFY_TOKEN')) {
             return $request->hub_challenge;
@@ -154,7 +154,7 @@ class PagesController extends Controller
         // Check that it's a page webhook
 
         // Get access token dynamically
-        
+
         if ($data['object'] === 'page') {
 
             foreach ($data['entry'] as $entry) {
