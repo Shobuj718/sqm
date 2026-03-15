@@ -14,15 +14,6 @@ git pull origin main --ff
 # composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
 
 
-# Recreate cache
-# php artisan optimize
-
-# Compile npm assets
-# npm run prod
-
-# Run database migrations
-# php artisan migrate --force
-
 # Exit maintenance mode
 php artisan up
 

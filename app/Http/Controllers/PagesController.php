@@ -100,6 +100,117 @@ class PagesController extends Controller
         return back()->with('error','Failed to post reply.');
     }
 
+    public function subscription()
+    {
+
+        $appId = env('FACEBOOK_APP_ID');
+        $appSecret = env('FACEBOOK_APP_SECRET');
+
+        $appAccessToken = $appId . '|' . $appSecret;
+
+        $response = Http::get("https://graph.facebook.com/v25.0/{$appId}/subscriptions", [
+            'access_token' => $appAccessToken
+        ]);
+
+        $data = $response->json();
+        dd($data);
+    }
+
+    public function createSubscription()
+    {
+
+        $appId = env('FACEBOOK_APP_ID');
+        $appSecret = env('FACEBOOK_APP_SECRET');
+
+        $appAccessToken = $appId . '|' . $appSecret;
+
+        $response = Http::asForm()->post("https://graph.facebook.com/v25.0/{$appId}/subscriptions", [
+            'object' => 'page',
+            'callback_url' => url('facebook/webhook'),
+            'fields' => 'feed,comments',
+            'include_values' => true,
+            'verify_token' => env('FACEBOOK_VERIFY_TOKEN'),
+            'access_token' => $appAccessToken
+        ]);
+
+        dd($response->json());
+    }
+
+
+    public function webhook(Request $request)
+    {
+        if ($request->hub_verify_token === env('FACEBOOK_VERIFY_TOKEN')) {
+            return $request->hub_challenge;
+        }
+
+        return response('Invalid token', 403);
+    }
+
+    public function webhookReply()
+    {
+
+        $data = $request->all();
+
+        // Check that it's a page webhook
+
+        // Get access token dynamically
+
+        if ($data['object'] === 'page') {
+
+            foreach ($data['entry'] as $entry) {
+
+                foreach ($entry['changes'] as $change) {
+
+                    $value = $change['value'];
+
+                    if ($value['item'] === 'comment' && $value['verb'] === 'add') {
+
+                        $commentId = $value['comment_id'];
+                        $message = $value['message']; // original comment text
+
+                        $reply = $this->checkDataset($userMessage);
+
+                        if (!$reply) {
+                            $reply = $this->generateHFReply($userMessage);
+                        }
+                        // Reply to comment
+                        Http::post("https://graph.facebook.com/v25.0/{$commentId}/comments", [
+                            'message' => $reply,
+                            'access_token' => $this->pagesToken,
+                        ]);
+                    }
+                }
+            }
+        }
+
+        return response('EVENT_RECEIVED', 200);
+
+    }
+
+    private function generateHFReply(string $userMessage): string
+    {
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . env('HUGGING_FACE_TOKEN'),
+        ])->post('https://api-inference.huggingface.co/models/gpt2', [
+            'inputs' => "Reply to this comment politely: \"$userMessage\"",
+        ]);
+
+        $body = $response->json();
+
+        return $body[0]['generated_text'] ?? "Thanks for your comment!";
+    }
+
+    private function checkDataset(string $userMessage): ?string
+    {
+        $dataset = json_decode(file_get_contents(storage_path('comments_replies.json')), true);
+        foreach ($dataset as $item) {
+            if (strtolower($item['comment']) === strtolower($userMessage)) {
+                return $item['reply'];
+            }
+        }
+        return null; // No match found
+    }
+
 
 
 

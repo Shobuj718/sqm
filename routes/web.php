@@ -34,6 +34,14 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/comments/{comment_id}/reply', [PagesController::class,'replyComment'])
     ->name('fbpages.replyComment');
 
+    Route::get('/subscription', [PagesController::class,'subscription'])
+    ->name('subscription');
+    Route::get('/create-subscription', [PagesController::class,'createSubscription'])
+    ->name('create-subscription');
+    Route::post('/facebook/webhook', [PagesController::class, 'webhookReply']);
+    Route::get('/facebook/webhook', [PagesController::class,'webhook'])
+    ->name('webhook');
+
 });
 
 require __DIR__.'/auth.php';
