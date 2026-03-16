@@ -38,10 +38,12 @@ Route::middleware(['auth'])->group(function () {
     ->name('subscription');
     Route::get('/create-subscription', [PagesController::class,'createSubscription'])
     ->name('create-subscription');
-    Route::post('/facebook/webhook', [PagesController::class, 'webhookReply']);
-    Route::get('/facebook/webhook', [PagesController::class,'webhook'])
-    ->name('webhook');
+
 
 });
+
+Route::post('/facebook/webhook', [PagesController::class, 'webhookReply']);
+Route::get('/facebook/webhook', [PagesController::class,'webhook'])
+    ->name('webhook');
 
 require __DIR__.'/auth.php';
