@@ -13,11 +13,57 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        // Create default roles
+        $adminRole = \App\Models\Role::firstOrCreate(
+            ['name' => 'admin'],
+            ['description' => 'Administrator']
+        );
+        $managerRole = \App\Models\Role::firstOrCreate(
+            ['name' => 'manager'],
+            ['description' => 'Manager']
+        );
+        $userRole = \App\Models\Role::firstOrCreate(
+            ['name' => 'user'],
+            ['description' => 'User']
+        );
 
-        User::factory()->create([
+        // Create default permissions
+        $permissions = [
+            'view-pages' => 'View pages',
+            'view-subscription' => 'View subscription',
+            'create-subscription' => 'Create subscription',
+            'manage-facebook' => 'Manage Facebook',
+        ];
+
+        $permissionModels = [];
+        foreach ($permissions as $name => $description) {
+            $permissionModels[$name] = \App\Models\Permission::firstOrCreate(
+                ['name' => $name],
+                ['description' => $description]
+            );
+        }
+
+        // Assign permissions to roles
+        $adminRole->permissions()->syncWithoutDetaching(array_values($permissionModels));
+        $managerRole->permissions()->syncWithoutDetaching([
+            $permissionModels['view-pages'],
+            $permissionModels['view-subscription'],
+            $permissionModels['create-subscription'],
+            $permissionModels['manage-facebook'],
+        ]);
+        $userRole->permissions()->syncWithoutDetaching([
+            $permissionModels['view-pages'],
+            $permissionModels['view-subscription'],
+        ]);
+
+        // Create test user
+        $testUser = User::factory()->create([
             'name' => 'Test User',
             'email' => 'test@example.com',
+            'role' => User::ROLE_USER,
         ]);
+
+        // Assign user role
+        $testUser->assignRole($userRole);
     }
 }

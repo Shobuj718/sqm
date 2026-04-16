@@ -11,7 +11,14 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        //
+        $middleware->validateCsrfTokens(except: [
+            '/facebook/webhook',
+        ]);
+
+        $middleware->alias([
+            'role' => App\Http\Middleware\EnsureUserHasRole::class,
+            'permission' => App\Http\Middleware\EnsureUserHasPermission::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

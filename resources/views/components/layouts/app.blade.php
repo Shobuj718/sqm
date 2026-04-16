@@ -32,8 +32,8 @@
             }
         }
         window.setAppearance(
-            "{{ auth()->user()->theme_preference ?? '' }}" || 
-            window.localStorage.getItem('appearance') || 
+            "{{ auth()->user()->theme_preference ?? '' }}" ||
+            window.localStorage.getItem('appearance') ||
             'system'
         )
     </script>
@@ -69,6 +69,12 @@
             <!-- Main Content -->
             <main class="flex-1 overflow-auto bg-gray-100 dark:bg-gray-900 content-transition">
                 <div class="p-6">
+                    @isset($header)
+                        <div class="mb-6">
+                            {{ $header }}
+                        </div>
+                    @endisset
+
                     <!-- Success Message -->
                     @session('status')
                         <div x-data="{ showStatusMessage: true }" x-show="showStatusMessage"

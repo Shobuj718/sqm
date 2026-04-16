@@ -92,7 +92,7 @@
         @endif
 
 
-        <a href="{{ route('fbpages.comments', $post['id']) }}"
+        <a href="{{ route('fbpages.comments', [$post['id'], $page_id]) }}"
            class="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700">
 
             View Comments

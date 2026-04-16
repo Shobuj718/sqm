@@ -1,15 +1,26 @@
 <x-layouts.app>
 
-<div class="flex items-center justify-between mb-6">
-    <h1 class="text-2xl font-bold text-gray-800 dark:text-white">
-        Facebook Pages
-    </h1>
+<div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-800 dark:text-white">
+            Facebook Pages
+        </h1>
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Pages are cached in the database. Click refresh to update from Facebook API.
+        </p>
+    </div>
 
-    <input type="text"
-           id="pageSearch"
-           placeholder="Search page..."
-           class="px-4 py-2 border rounded-lg dark:bg-gray-700 dark:text-white"
-           onkeyup="searchPages()">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <a href="{{ route('pages', ['refresh' => 1]) }}"
+           class="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+            Refresh from Facebook
+        </a>
+        <input type="text"
+               id="pageSearch"
+               placeholder="Search page..."
+               class="px-4 py-2 border rounded-lg dark:bg-gray-700 dark:text-white"
+               onkeyup="searchPages()">
+    </div>
 </div>
 
 
@@ -80,6 +91,10 @@
 
                         View Posts
 
+                    </a>
+
+                    <a href="{{ url('replies/'.$page['id']) }}" class="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                        Manage Replies
                     </a>
 
                 </td>

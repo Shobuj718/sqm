@@ -9,15 +9,40 @@
                             <x-layouts.sidebar-link href="{{ route('dashboard') }}" icon='fas-house'
                                 :active="request()->routeIs('dashboard*')">Dashboard</x-layouts.sidebar-link>
 
-                            <x-layouts.sidebar-link href="{{ route('pages') }}" icon='fas-file-alt'
-                                :active="request()->routeIs('pages*')">Pages</x-layouts.sidebar-link>
+                            @if(auth()->check() && auth()->user()->hasRole('admin'))
+                                <!-- Admin area visible only for admin users -->
+                                <x-layouts.sidebar-two-level-link-parent title="User Management" icon="fas-users"
+                                    :active="request()->routeIs('admin*')">
+                                    <x-layouts.sidebar-two-level-link href="{{ route('admin.users.index') }}" icon='fas-user-friends'
+                                        :active="request()->routeIs('admin.users*')">Users</x-layouts.sidebar-two-level-link>
+                                    <x-layouts.sidebar-two-level-link href="{{ route('admin.roles') }}" icon='fas-user-tag'
+                                        :active="request()->routeIs('admin.roles*')">Roles</x-layouts.sidebar-two-level-link>
+                                    <x-layouts.sidebar-two-level-link href="{{ route('admin.permissions') }}" icon='fas-key'
+                                        :active="request()->routeIs('admin.permissions*')">Permissions</x-layouts.sidebar-two-level-link>
+                                </x-layouts.sidebar-two-level-link-parent>
+                            @endif
 
-                            {{-- <!-- Example two level -->
-                            <x-layouts.sidebar-two-level-link-parent title="Example two level" icon="fas-house"
-                                :active="request()->routeIs('two-level*')">
-                                <x-layouts.sidebar-two-level-link href="#" icon='fas-house'
-                                    :active="request()->routeIs('two-level*')">Child</x-layouts.sidebar-two-level-link>
-                            </x-layouts.sidebar-two-level-link-parent>
+                            @if(auth()->check() && auth()->user()->hasPermission('view-pages'))
+                                <x-layouts.sidebar-link href="{{ route('pages') }}" icon='fas-file-alt'
+                                    :active="request()->routeIs('pages*')">Pages</x-layouts.sidebar-link>
+                            @endif
+
+                            @if(auth()->check() && (auth()->user()->hasRole('admin') || auth()->user()->hasRole('manager')))
+                                <x-layouts.sidebar-link href="{{ route('tickets.index') }}" icon='fas-ticket-alt'
+                                    :active="request()->routeIs('tickets*')">
+                                    <span class="flex items-center">
+                                        Support Tickets
+                                        @php
+                                            $openCount = \App\Models\Ticket::where('status', 'open')->orWhere('status', 'in_progress')->count();
+                                        @endphp
+                                        @if($openCount > 0)
+                                            <span class="ml-2 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 bg-red-600 rounded-full">{{ $openCount }}</span>
+                                        @endif
+                                    </span>
+                                </x-layouts.sidebar-link>
+                            @endif
+
+                            {{--
 
                             <!-- Example three level -->
                             <x-layouts.sidebar-two-level-link-parent title="Example three level" icon="fas-house"
