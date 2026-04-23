@@ -15,6 +15,70 @@
 
         <!-- Right side: Theme toggle, Search, notifications, profile -->
         <div class="flex items-center space-x-4">
+            <!-- Notifications Bell -->
+            <div x-data="{ open: false, notificationCount: 0 }" class="relative">
+                <button @click="open = !open" class="relative p-2 rounded-md text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 focus:outline-none transition-colors duration-200">
+                    <!-- Bell Icon -->
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    <!-- Badge with count -->
+                    <template x-if="notificationCount > 0">
+                        <span class="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full">
+                            <span x-text="notificationCount > 99 ? '99+' : notificationCount"></span>
+                        </span>
+                    </template>
+                </button>
+
+                <!-- Notification Dropdown -->
+                <div x-show="open" @click.away="open = false" x-transition
+                    class="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-md shadow-lg py-2 z-50 border border-gray-200 dark:border-gray-700 max-h-96 overflow-y-auto">
+                    <div class="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+                        <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">New Messages</h3>
+                        <p class="text-xs text-gray-500 dark:text-gray-400" x-text="`You have ${notificationCount} new message${notificationCount !== 1 ? 's' : ''}`"></p>
+                    </div>
+                    
+                    <template x-if="notificationCount === 0">
+                        <div class="px-4 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                            No new messages
+                        </div>
+                    </template>
+
+                    <div class="px-4 py-2">
+                        <a href="{{ route('tickets.index') }}" class="block w-full text-center px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium transition-colors">
+                            View All Tickets
+                        </a>
+                    </div>
+                </div>
+
+                <script>
+                    document.addEventListener('DOMContentLoaded', function() {
+                        const notificationBell = document.querySelector('[x-data*="notificationCount"]');
+                        if (notificationBell) {
+                            // Initial fetch
+                            fetchUnreadCount();
+                            // Refresh every 5 seconds
+                            setInterval(fetchUnreadCount, 5000);
+                        }
+                    });
+
+                    async function fetchUnreadCount() {
+                        try {
+                            const response = await fetch('/api/unread-messages-count');
+                            const data = await response.json();
+                            
+                            // Update Alpine.js data
+                            const bellElement = document.querySelector('[x-data*="notificationCount"]');
+                            if (bellElement && bellElement.__x) {
+                                bellElement.__x.$data.notificationCount = data.count;
+                            }
+                        } catch (error) {
+                            console.error('Error fetching unread count:', error);
+                        }
+                    }
+                </script>
+            </div>
+
             <!-- Theme Toggle -->
             <div x-data="{ open: false }" class="relative">
                 <button @click="open = !open"

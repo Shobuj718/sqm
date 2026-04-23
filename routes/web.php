@@ -10,12 +10,8 @@ use App\Http\Controllers\Admin\UserController;
 
 
 Route::get('/', function () {
-    return view('welcome');
+    return redirect('dashboard');
 })->name('home');
-
-
-;
-
 
 
 Route::get('/dashboard', [DashboardController::class,'index'])->middleware(['auth', 'verified'])->name('dashboard');
@@ -75,13 +71,15 @@ Route::middleware(['auth'])->group(function () {
     // Ticket Management
     Route::get('/tickets', [\App\Http\Controllers\Admin\TicketController::class, 'index'])->name('tickets.index');
     Route::get('/tickets/{ticket}', [\App\Http\Controllers\Admin\TicketController::class, 'show'])->name('tickets.show');
+    Route::get('/tickets/{ticket}/messages', [\App\Http\Controllers\Admin\TicketController::class, 'getMessages'])->name('tickets.getMessages');
+    Route::get('/api/unread-messages-count', [\App\Http\Controllers\Admin\TicketController::class, 'getUnreadMessagesCount'])->name('tickets.unreadCount');
     Route::put('/tickets/{ticket}', [\App\Http\Controllers\Admin\TicketController::class, 'update'])->name('tickets.update');
     Route::post('/tickets/{ticket}/assign', [\App\Http\Controllers\Admin\TicketController::class, 'assign'])->name('tickets.assign');
     Route::post('/tickets/{ticket}/close', [\App\Http\Controllers\Admin\TicketController::class, 'close'])->name('tickets.close');
     Route::post('/tickets/{ticket}/resolve', [\App\Http\Controllers\Admin\TicketController::class, 'resolve'])->name('tickets.resolve');
     Route::delete('/tickets/{ticket}', [\App\Http\Controllers\Admin\TicketController::class, 'destroy'])->name('tickets.destroy');
 
-    
+
 
     Route::post('/replies/add', [PagesController::class, 'replyAdd'])
         ->middleware('permission:view-pages');

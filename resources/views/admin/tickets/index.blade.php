@@ -22,7 +22,7 @@
                             <div class="ml-5 w-0 flex-1">
                                 <dl>
                                     <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Total Tickets</dt>
-                                    <dd class="text-lg font-medium text-gray-900 dark:text-gray-100">{{ $tickets->total() }}</dd>
+                                    <dd class="text-lg font-medium text-gray-900 dark:text-gray-100">{{ $summaryTotal }}</dd>
                                 </dl>
                             </div>
                         </div>
@@ -40,7 +40,7 @@
                             <div class="ml-5 w-0 flex-1">
                                 <dl>
                                     <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Open</dt>
-                                    <dd class="text-lg font-medium text-gray-900 dark:text-gray-100">{{ \App\Models\Ticket::where('status', 'open')->count() }}</dd>
+                                    <dd class="text-lg font-medium text-gray-900 dark:text-gray-100">{{ $summaryOpen }}</dd>
                                 </dl>
                             </div>
                         </div>
@@ -58,7 +58,7 @@
                             <div class="ml-5 w-0 flex-1">
                                 <dl>
                                     <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">In Progress</dt>
-                                    <dd class="text-lg font-medium text-gray-900 dark:text-gray-100">{{ \App\Models\Ticket::where('status', 'in_progress')->count() }}</dd>
+                                    <dd class="text-lg font-medium text-gray-900 dark:text-gray-100">{{ $summaryInProgress }}</dd>
                                 </dl>
                             </div>
                         </div>
@@ -76,7 +76,7 @@
                             <div class="ml-5 w-0 flex-1">
                                 <dl>
                                     <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Resolved</dt>
-                                    <dd class="text-lg font-medium text-gray-900 dark:text-gray-100">{{ \App\Models\Ticket::where('status', 'resolved')->count() }}</dd>
+                                    <dd class="text-lg font-medium text-gray-900 dark:text-gray-100">{{ $summaryResolved }}</dd>
                                 </dl>
                             </div>
                         </div>

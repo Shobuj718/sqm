@@ -3,6 +3,8 @@
 namespace App\Jobs;
 
 use App\Models\Ticket;
+use App\Notifications\NewTicketMessage;
+use App\Services\TicketLogService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -22,6 +24,7 @@ class HandleFacebookMessageJob implements ShouldQueue
     public string $pageToken;
     public ?string $senderId;
     public string $message;
+    private bool $createdNewTicket = false;
 
     public function __construct(string $pageId, string $pageToken, ?string $senderId, string $message)
     {
@@ -52,8 +55,8 @@ class HandleFacebookMessageJob implements ShouldQueue
             return;
         }
 
-        // Add message to ticket
-        $ticket->addMessage(
+        // Add customer message to ticket
+        $customerMessage = $ticket->addMessage(
             facebookMessageId: uniqid(),
             senderFacebookId: $this->senderId,
             message: $this->message,
@@ -61,22 +64,44 @@ class HandleFacebookMessageJob implements ShouldQueue
             channel: 'messenger'
         );
 
-        // Send automatic reply
-        $reply = $this->checkDataset($this->message, $this->pageId)
-            ?? $this->generateHFReply($this->message);
+        // Notify the assigned agent about the new message
+        if ($ticket->assigned_to && $ticket->assignedAgent) {
+            $ticket->assignedAgent->notify(new NewTicketMessage($ticket, $customerMessage));
+        }
 
-        $response = Http::post('https://graph.facebook.com/v25.0/me/messages', [
-            'access_token' => $this->pageToken,
-            'recipient' => ['id' => $this->senderId],
-            'message' => ['text' => $reply],
-        ]);
+        // Only send and store automatic reply for a newly created ticket.
+        if ($this->createdNewTicket) {
+            $reply = $this->checkDataset($this->message, $this->pageId)
+                ?? $this->generateHFReply($this->message);
+
+            // Save the automatic reply in the ticket history.
+            $ticket->addMessage(
+                facebookMessageId: uniqid('auto_reply_'),
+                senderFacebookId: $this->pageId,
+                message: $reply,
+                messageType: 'agent',
+                channel: 'messenger'
+            );
+
+            $response = Http::post('https://graph.facebook.com/v25.0/me/messages', [
+                'access_token' => $this->pageToken,
+                'recipient' => ['id' => $this->senderId],
+                'message' => ['text' => $reply],
+            ]);
+
+            Log::info('HandleFacebookMessageJob response', [
+                'page_id' => $this->pageId,
+                'sender_id' => $this->senderId,
+                'ticket_id' => $ticket->id,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+        }
 
         Log::info('HandleFacebookMessageJob response', [
             'page_id' => $this->pageId,
             'sender_id' => $this->senderId,
             'ticket_id' => $ticket->id,
-            'status' => $response->status(),
-            'body' => $response->body(),
         ]);
     }
 
@@ -110,6 +135,15 @@ class HandleFacebookMessageJob implements ShouldQueue
                 'status' => 'open',
                 'priority' => 'medium',
             ]);
+
+            $this->createdNewTicket = true;
+
+            // Log ticket creation
+            TicketLogService::logAction(
+                $ticket,
+                'created',
+                description: 'Ticket created automatically from customer message'
+            );
 
             Log::info('New support ticket created', [
                 'ticket_id' => $ticket->id,

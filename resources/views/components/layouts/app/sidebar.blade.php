@@ -27,17 +27,11 @@
                                     :active="request()->routeIs('pages*')">Pages</x-layouts.sidebar-link>
                             @endif
 
-                            @if(auth()->check() && (auth()->user()->hasRole('admin') || auth()->user()->hasRole('manager')))
+                            @if(auth()->check() &&  auth()->user()->hasPermission('support-ticket'))
                                 <x-layouts.sidebar-link href="{{ route('tickets.index') }}" icon='fas-ticket-alt'
                                     :active="request()->routeIs('tickets*')">
                                     <span class="flex items-center">
-                                        Support Tickets
-                                        @php
-                                            $openCount = \App\Models\Ticket::where('status', 'open')->orWhere('status', 'in_progress')->count();
-                                        @endphp
-                                        @if($openCount > 0)
-                                            <span class="ml-2 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 bg-red-600 rounded-full">{{ $openCount }}</span>
-                                        @endif
+                                        Tickets
                                     </span>
                                 </x-layouts.sidebar-link>
                             @endif

@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Ticket;
+use App\Services\TicketLogService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -109,6 +110,13 @@ class HandleFacebookCommentJob implements ShouldQueue
                 'status' => 'open',
                 'priority' => 'medium',
             ]);
+
+            // Log ticket creation
+            TicketLogService::logAction(
+                $ticket,
+                'created',
+                description: 'Ticket created automatically from customer comment'
+            );
 
             Log::info('New support ticket created from comment', [
                 'ticket_id' => $ticket->id,

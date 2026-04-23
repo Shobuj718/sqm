@@ -73,6 +73,14 @@ class Ticket extends Model
     }
 
     /**
+     * Get all logs for this ticket.
+     */
+    public function logs(): HasMany
+    {
+        return $this->hasMany(TicketLog::class)->orderBy('created_at', 'desc');
+    }
+
+    /**
      * Check if ticket is open.
      */
     public function isOpen(): bool

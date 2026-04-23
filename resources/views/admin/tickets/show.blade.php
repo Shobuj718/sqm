@@ -60,14 +60,55 @@
                         </div>
                     </div>
 
+                    <!-- Ticket Activity Log -->
+                    <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg mb-6">
+                        <details class="group">
+                            <summary class="flex cursor-pointer items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 text-lg font-semibold text-gray-900 dark:text-gray-100">
+                                <span>Activity Log</span>
+                                <span class="text-gray-500 duration-200 group-open:rotate-180">&#9660;</span>
+                            </summary>
+                            <div class="px-6 py-4">
+                                @forelse($ticket->logs()->get() as $log)
+                                <div class="flex gap-4 pb-4 {{ !$loop->last ? 'border-b border-gray-200 dark:border-gray-700' : '' }}">
+                                    <div class="flex-shrink-0">
+                                        <div class="flex items-center justify-center h-8 w-8 rounded-full {{ $log->action === 'created' ? 'bg-green-100 dark:bg-green-900' : ($log->action === 'assigned' || $log->action === 'reassigned' ? 'bg-blue-100 dark:bg-blue-900' : ($log->action === 'status_changed' ? 'bg-yellow-100 dark:bg-yellow-900' : ($log->action === 'priority_changed' ? 'bg-orange-100 dark:bg-orange-900' : ($log->action === 'message_added' ? 'bg-purple-100 dark:bg-purple-900' : 'bg-gray-100 dark:bg-gray-700')))) }}">
+                                            <span class="text-sm font-medium {{ $log->action === 'created' ? 'text-green-700 dark:text-green-300' : ($log->action === 'assigned' || $log->action === 'reassigned' ? 'text-blue-700 dark:text-blue-300' : ($log->action === 'status_changed' ? 'text-yellow-700 dark:text-yellow-300' : ($log->action === 'priority_changed' ? 'text-orange-700 dark:text-orange-300' : ($log->action === 'message_added' ? 'text-purple-700 dark:text-purple-300' : 'text-gray-700 dark:text-gray-300')))) }}">
+                                                {{ $log->action === 'created' ? '✓' : ($log->action === 'assigned' || $log->action === 'reassigned' ? '👤' : ($log->action === 'status_changed' ? '◊' : ($log->action === 'priority_changed' ? '!' : ($log->action === 'message_added' ? '💬' : '○')))) }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-baseline gap-2">
+                                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                                {{ $log->formatted_action }}
+                                            </p>
+                                            @if($log->user)
+                                            <p class="text-xs text-gray-500 dark:text-gray-400">by {{ $log->user->name }}</p>
+                                            @endif
+                                        </div>
+                                        @if($log->description)
+                                        <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">{{ $log->description }}</p>
+                                        @endif
+                                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ $log->created_at->format('M d, Y H:i') }}</p>
+                                    </div>
+                                </div>
+                                @empty
+                                <div class="text-center text-gray-500 dark:text-gray-400 py-8">
+                                    No activity yet.
+                                </div>
+                                @endforelse
+                            </div>
+                        </details>
+                    </div>
+
                     <!-- Messages Container -->
                     <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg mb-6">
                         <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                             <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Conversation History</h3>
                         </div>
-                        <div class="px-6 py-4 space-y-4 max-h-96 overflow-y-auto">
+                        <div id="messages-container" class="px-6 py-4 space-y-4 max-h-96 overflow-y-auto">
                             @forelse($ticket->messages()->orderBy('created_at', 'asc')->get() as $message)
-                            <div class="flex {{ $message->message_type === 'customer' ? 'justify-start' : ($message->message_type === 'agent' ? 'justify-end' : 'justify-center') }}">
+                            <div class="flex {{ $message->message_type === 'customer' ? 'justify-start' : ($message->message_type === 'agent' ? 'justify-end' : 'justify-center') }}" data-message-id="{{ $message->id }}">
                                 <div class="max-w-xs lg:max-w-md {{ $message->message_type === 'customer' ? 'bg-gray-100 dark:bg-gray-700' : ($message->message_type === 'agent' ? 'bg-blue-100 dark:bg-blue-900' : 'bg-yellow-100 dark:bg-yellow-900') }} rounded-lg px-4 py-2">
                                     <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">
                                         {{ $message->message_type === 'customer' ? '👤 Customer' : ($message->message_type === 'agent' ? '👨‍💼 Agent' : '⚙️ System') }}
@@ -88,7 +129,7 @@
                     </div>
 
                     <!-- Reply Form -->
-                    <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
+                    <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg mb-6">
                         <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                             <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Reply</h3>
                         </div>
@@ -112,6 +153,8 @@
                             <button type="submit" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium text-sm">Send Reply</button>
                         </form>
                     </div>
+
+
                 </div>
 
                 <!-- Sidebar Actions -->
@@ -219,4 +262,77 @@
             </div>
         </div>
     </div>
+
+    <script>
+        // Auto-refresh messages every 3 seconds
+        const ticketId = {{ $ticket->id }};
+        let messageIds = new Set();
+
+        // Initialize with existing message IDs
+        document.querySelectorAll('[data-message-id]').forEach(el => {
+            messageIds.add(el.dataset.messageId);
+        });
+
+        async function fetchMessages() {
+            try {
+                const response = await fetch(`/tickets/${ticketId}/messages`);
+                const data = await response.json();
+
+                const container = document.getElementById('messages-container');
+
+                // Clear the "No messages yet" message if there are messages
+                if (data.messages.length > 0) {
+                    const emptyMessage = container.querySelector('.text-center');
+                    if (emptyMessage && data.messages.length > 0) {
+                        emptyMessage.remove();
+                    }
+                }
+
+                // Add new messages that don't exist yet
+                data.messages.forEach((message, index) => {
+                    if (!messageIds.has(message.id)) {
+                        messageIds.add(message.id);
+
+                        const messageEl = document.createElement('div');
+                        messageEl.className = 'flex ' + (message.message_type === 'customer' ? 'justify-start' : (message.message_type === 'agent' ? 'justify-end' : 'justify-center'));
+                        messageEl.dataset.messageId = message.id;
+
+                        const bgClass = message.message_type === 'customer' ? 'bg-gray-100 dark:bg-gray-700' :
+                                       (message.message_type === 'agent' ? 'bg-blue-100 dark:bg-blue-900' : 'bg-yellow-100 dark:bg-yellow-900');
+
+                        const messageType = message.message_type === 'customer' ? '👤 Customer' :
+                                          (message.message_type === 'agent' ? '👨‍💼 Agent' : '⚙️ System');
+
+                        messageEl.innerHTML = `
+                            <div class="max-w-xs lg:max-w-md ${bgClass} rounded-lg px-4 py-2">
+                                <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                                    ${messageType}
+                                    ${message.channel ? '• ' + message.channel.charAt(0).toUpperCase() + message.channel.slice(1) : ''}
+                                </div>
+                                <p class="text-sm text-gray-900 dark:text-gray-100 break-words">${escapeHtml(message.message)}</p>
+                                <div class="text-xs text-gray-400 dark:text-gray-500 mt-1">${message.created_at}</div>
+                            </div>
+                        `;
+
+                        container.appendChild(messageEl);
+
+                        // Auto-scroll to bottom
+                        container.scrollTop = container.scrollHeight;
+                    }
+                });
+            } catch (error) {
+                console.error('Error fetching messages:', error);
+            }
+        }
+
+        // Helper function to escape HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Poll for new messages every 3 seconds
+        setInterval(fetchMessages, 3000);
+    </script>
 </x-layouts.app>
