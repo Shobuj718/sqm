@@ -18,7 +18,7 @@
                             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                                 <div>
                                     <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ $ticket->subject }}</h3>
-                                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Customer: {{ $ticket->customer_name }}</p>
+                                    <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Customer:   <a href="https://www.facebook.com/profile.php?id={{ $ticket->customer_facebook_id }}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">{{ $ticket->customer_name ?? $ticket->customer_facebook_id  }}</a></p>
                                 </div>
                                 <div class="flex gap-2">
                                     <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium {{ $ticket->status === 'open' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' : ($ticket->status === 'in_progress' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : ($ticket->status === 'resolved' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200')) }}">
@@ -103,17 +103,23 @@
 
                     <!-- Messages Container -->
                     <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg mb-6">
-                        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                        <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
                             <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Conversation History</h3>
+                            <button type="button" onclick="markAllMessagesAsRead({{ $ticket->id }})" class="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300">
+                                Mark all as read
+                            </button>
                         </div>
                         <div id="messages-container" class="px-6 py-4 space-y-4 max-h-96 overflow-y-auto">
                             @forelse($ticket->messages()->orderBy('created_at', 'asc')->get() as $message)
                             <div class="flex {{ $message->message_type === 'customer' ? 'justify-start' : ($message->message_type === 'agent' ? 'justify-end' : 'justify-center') }}" data-message-id="{{ $message->id }}">
-                                <div class="max-w-xs lg:max-w-md {{ $message->message_type === 'customer' ? 'bg-gray-100 dark:bg-gray-700' : ($message->message_type === 'agent' ? 'bg-blue-100 dark:bg-blue-900' : 'bg-yellow-100 dark:bg-yellow-900') }} rounded-lg px-4 py-2">
+                                <div class="max-w-xs lg:max-w-md {{ $message->message_type === 'customer' ? ($message->is_read ? 'bg-gray-100 dark:bg-gray-700' : 'bg-yellow-50 dark:bg-yellow-900/30 border-l-4 border-yellow-500') : ($message->message_type === 'agent' ? 'bg-blue-100 dark:bg-blue-900' : 'bg-yellow-100 dark:bg-yellow-900') }} rounded-lg px-4 py-2">
                                     <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">
                                         {{ $message->message_type === 'customer' ? '👤 Customer' : ($message->message_type === 'agent' ? '👨‍💼 Agent' : '⚙️ System') }}
                                         @if($message->channel)
                                         • {{ ucfirst($message->channel) }}
+                                        @endif
+                                        @if($message->message_type === 'customer' && !$message->is_read)
+                                        <span class="ml-1 px-1.5 py-0.5 bg-red-100 text-red-600 dark:bg-red-900 dark:text-red-300 rounded text-xs">New</span>
                                         @endif
                                     </div>
                                     <p class="text-sm text-gray-900 dark:text-gray-100 break-words">{{ $message->message }}</p>
@@ -264,66 +270,89 @@
     </div>
 
     <script>
-        // Auto-refresh messages every 3 seconds
-        const ticketId = {{ $ticket->id }};
-        let messageIds = new Set();
 
-        // Initialize with existing message IDs
-        document.querySelectorAll('[data-message-id]').forEach(el => {
-            messageIds.add(el.dataset.messageId);
+        document.addEventListener('DOMContentLoaded', function () {
+
+            const ticketId = {{ $ticket->id }};
+            console.log(ticketId);
+            let messageIds = new Set();
+
+            // Initialize existing messages
+            document.querySelectorAll('[data-message-id]').forEach(el => {
+                messageIds.add(el.dataset.messageId);
+            });
+
+            // Safety check
+            if (!window.Echo) {
+                console.error('Echo is not initialized');
+                return;
+            }
+
+            console.log('Echo ready:', window.Echo);
+            console.log('Connection state:', window.Echo.connector.pusher.connection.state);
+
+            // Real-time listener
+            window.Echo.private('ticket.' + ticketId)
+                .listen('.NewTicketMessage', (event) => {
+
+                    console.log('Received real-time message:', event);
+
+                    const container = document.getElementById('messages-container');
+                    const message = event.message;
+
+                    if (!message || messageIds.has(message.id)) return;
+
+                    messageIds.add(message.id);
+
+                    const messageEl = document.createElement('div');
+
+                    const alignment =
+                        message.sender_type === 'customer'
+                            ? 'justify-start'
+                            : message.sender_type === 'agent'
+                                ? 'justify-end'
+                                : 'justify-center';
+
+                    const bgClass =
+                        message.sender_type === 'customer'
+                            ? 'bg-gray-100 dark:bg-gray-700'
+                            : message.sender_type === 'agent'
+                                ? 'bg-blue-100 dark:bg-blue-900'
+                                : 'bg-yellow-100 dark:bg-yellow-900';
+
+                    const messageType =
+                        message.sender_type === 'customer'
+                            ? '👤 Customer'
+                            : message.sender_type === 'agent'
+                                ? '👨‍💼 Agent'
+                                : '⚙️ System';
+
+                    messageEl.className = `flex ${alignment}`;
+                    messageEl.dataset.messageId = message.id;
+
+                    messageEl.innerHTML = `
+                        <div class="max-w-xs lg:max-w-md ${bgClass} rounded-lg px-4 py-2">
+                            <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                                ${messageType}
+                            </div>
+                            <p class="text-sm text-gray-900 dark:text-gray-100 break-words">
+                                ${escapeHtml(message.message)}
+                            </p>
+                            <div class="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                ${message.created_at ?? ''}
+                            </div>
+                        </div>
+                    `;
+
+                    container.appendChild(messageEl);
+                    container.scrollTop = container.scrollHeight;
+                })
+                .error((error) => {
+                    console.error('WebSocket error:', error);
+                });
         });
 
-        async function fetchMessages() {
-            try {
-                const response = await fetch(`/tickets/${ticketId}/messages`);
-                const data = await response.json();
 
-                const container = document.getElementById('messages-container');
-
-                // Clear the "No messages yet" message if there are messages
-                if (data.messages.length > 0) {
-                    const emptyMessage = container.querySelector('.text-center');
-                    if (emptyMessage && data.messages.length > 0) {
-                        emptyMessage.remove();
-                    }
-                }
-
-                // Add new messages that don't exist yet
-                data.messages.forEach((message, index) => {
-                    if (!messageIds.has(message.id)) {
-                        messageIds.add(message.id);
-
-                        const messageEl = document.createElement('div');
-                        messageEl.className = 'flex ' + (message.message_type === 'customer' ? 'justify-start' : (message.message_type === 'agent' ? 'justify-end' : 'justify-center'));
-                        messageEl.dataset.messageId = message.id;
-
-                        const bgClass = message.message_type === 'customer' ? 'bg-gray-100 dark:bg-gray-700' :
-                                       (message.message_type === 'agent' ? 'bg-blue-100 dark:bg-blue-900' : 'bg-yellow-100 dark:bg-yellow-900');
-
-                        const messageType = message.message_type === 'customer' ? '👤 Customer' :
-                                          (message.message_type === 'agent' ? '👨‍💼 Agent' : '⚙️ System');
-
-                        messageEl.innerHTML = `
-                            <div class="max-w-xs lg:max-w-md ${bgClass} rounded-lg px-4 py-2">
-                                <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                                    ${messageType}
-                                    ${message.channel ? '• ' + message.channel.charAt(0).toUpperCase() + message.channel.slice(1) : ''}
-                                </div>
-                                <p class="text-sm text-gray-900 dark:text-gray-100 break-words">${escapeHtml(message.message)}</p>
-                                <div class="text-xs text-gray-400 dark:text-gray-500 mt-1">${message.created_at}</div>
-                            </div>
-                        `;
-
-                        container.appendChild(messageEl);
-
-                        // Auto-scroll to bottom
-                        container.scrollTop = container.scrollHeight;
-                    }
-                });
-            } catch (error) {
-                console.error('Error fetching messages:', error);
-            }
-        }
 
         // Helper function to escape HTML
         function escapeHtml(text) {
@@ -332,7 +361,30 @@
             return div.innerHTML;
         }
 
+        // Mark all messages as read for this ticket
+        async function markAllMessagesAsRead(ticketId) {
+            try {
+                const response = await fetch(`/tickets/${ticketId}/mark-read`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    }
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    // Reload the page to show updated read status
+                    location.reload();
+                } else {
+                    console.error('Failed to mark messages as read:', data.message);
+                }
+            } catch (error) {
+                console.error('Error marking messages as read:', error);
+            }
+        }
+
         // Poll for new messages every 3 seconds
-        setInterval(fetchMessages, 3000);
+       // setInterval(fetchMessages, 3000);
     </script>
 </x-layouts.app>

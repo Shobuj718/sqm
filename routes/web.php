@@ -78,6 +78,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/tickets/{ticket}/close', [\App\Http\Controllers\Admin\TicketController::class, 'close'])->name('tickets.close');
     Route::post('/tickets/{ticket}/resolve', [\App\Http\Controllers\Admin\TicketController::class, 'resolve'])->name('tickets.resolve');
     Route::delete('/tickets/{ticket}', [\App\Http\Controllers\Admin\TicketController::class, 'destroy'])->name('tickets.destroy');
+    Route::post('/tickets/{ticket}/mark-read', [\App\Http\Controllers\Admin\TicketController::class, 'markMessagesAsRead'])->name('tickets.markRead');
+    Route::post('/messages/{message}/mark-read', [\App\Http\Controllers\Admin\TicketController::class, 'markMessageAsRead'])->name('messages.markRead');
 
 
 

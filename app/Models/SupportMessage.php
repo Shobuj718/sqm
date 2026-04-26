@@ -14,11 +14,15 @@ class SupportMessage extends Model
         'message',
         'message_type',
         'channel',
+        'is_read',
+        'read_at',
     ];
 
     protected $casts = [
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'is_read' => 'boolean',
+        'read_at' => 'datetime',
     ];
 
     /**
@@ -51,6 +55,46 @@ class SupportMessage extends Model
     public function isSystemMessage(): bool
     {
         return $this->message_type === 'system';
+    }
+
+    /**
+     * Mark this message as read.
+     */
+    public function markAsRead(): self
+    {
+        $this->update([
+            'is_read' => true,
+            'read_at' => now(),
+        ]);
+        return $this;
+    }
+
+    /**
+     * Mark this message as unread.
+     */
+    public function markAsUnread(): self
+    {
+        $this->update([
+            'is_read' => false,
+            'read_at' => null,
+        ]);
+        return $this;
+    }
+
+    /**
+     * Scope to get only unread messages.
+     */
+    public function scopeUnread($query)
+    {
+        return $query->where('is_read', false);
+    }
+
+    /**
+     * Scope to get only read messages.
+     */
+    public function scopeRead($query)
+    {
+        return $query->where('is_read', true);
     }
 }
 

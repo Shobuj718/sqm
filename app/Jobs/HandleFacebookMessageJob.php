@@ -2,8 +2,8 @@
 
 namespace App\Jobs;
 
+use App\Events\NewTicketMessage;
 use App\Models\Ticket;
-use App\Notifications\NewTicketMessage;
 use App\Services\TicketLogService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -64,9 +64,12 @@ class HandleFacebookMessageJob implements ShouldQueue
             channel: 'messenger'
         );
 
+        // Broadcast the new message event via Reverb for real-time updates
+        event(new NewTicketMessage($ticket, $customerMessage));
+
         // Notify the assigned agent about the new message
         if ($ticket->assigned_to && $ticket->assignedAgent) {
-            $ticket->assignedAgent->notify(new NewTicketMessage($ticket, $customerMessage));
+            $ticket->assignedAgent->notify(new \App\Notifications\NewTicketMessage($ticket, $customerMessage));
         }
 
         // Only send and store automatic reply for a newly created ticket.

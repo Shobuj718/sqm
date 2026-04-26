@@ -37,7 +37,7 @@
                         <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100">New Messages</h3>
                         <p class="text-xs text-gray-500 dark:text-gray-400" x-text="`You have ${notificationCount} new message${notificationCount !== 1 ? 's' : ''}`"></p>
                     </div>
-                    
+
                     <template x-if="notificationCount === 0">
                         <div class="px-4 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
                             No new messages
@@ -56,9 +56,9 @@
                         const notificationBell = document.querySelector('[x-data*="notificationCount"]');
                         if (notificationBell) {
                             // Initial fetch
-                            fetchUnreadCount();
+                            //fetchUnreadCount();
                             // Refresh every 5 seconds
-                            setInterval(fetchUnreadCount, 5000);
+                            //setInterval(fetchUnreadCount, 5000);
                         }
                     });
 
@@ -66,7 +66,8 @@
                         try {
                             const response = await fetch('/api/unread-messages-count');
                             const data = await response.json();
-                            
+                            console.log('Unread messages count:', data.count);
+
                             // Update Alpine.js data
                             const bellElement = document.querySelector('[x-data*="notificationCount"]');
                             if (bellElement && bellElement.__x) {
@@ -141,7 +142,7 @@
                         if (typeof window.setAppearance === 'function') {
                             window.setAppearance(theme);
                         }
-                        
+
                         // Set and submit form for persistence
                         const form = document.getElementById('header-appearance-form');
                         const input = document.getElementById('header_theme_preference');

@@ -245,6 +245,7 @@ class TicketController extends Controller
                     'message' => $message->message,
                     'message_type' => $message->message_type,
                     'channel' => $message->channel,
+                    'is_read' => $message->is_read,
                     'created_at' => $message->created_at->format('H:i'),
                     'created_at_full' => $message->created_at->format('M d, Y H:i'),
                 ];
@@ -267,13 +268,13 @@ class TicketController extends Controller
             return response()->json(['count' => 0]);
         }
 
-        // Count recent customer messages on tickets assigned to this user
+        // Count unread customer messages on tickets assigned to this user
         $count = Ticket::where('assigned_to', $user->id)
             ->whereIn('status', ['open', 'in_progress'])
             ->withCount([
                 'messages' => function ($query) {
                     $query->where('message_type', 'customer')
-                        ->where('created_at', '>=', now()->subHours(24));
+                        ->where('is_read', false);
                 }
             ])
             ->get()
@@ -282,6 +283,58 @@ class TicketController extends Controller
         return response()->json(['count' => $count]);
     }
 
+    /**
+     * Mark all messages on a ticket as read.
+     */
+    public function markMessagesAsRead(Ticket $ticket): JsonResponse
+    {
+        $user = auth()->user();
+
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        // Only allow marking as read if user is assigned to this ticket
+        if ($ticket->assigned_to !== $user->id && !$user->hasRole('admin')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $updated = $ticket->messages()
+            ->where('message_type', 'customer')
+            ->where('is_read', false)
+            ->update([
+                'is_read' => true,
+                'read_at' => now(),
+            ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => "{$updated} messages marked as read"
+        ]);
+    }
+
+    /**
+     * Mark a single message as read.
+     */
+    public function markMessageAsRead(\App\Models\SupportMessage $message): JsonResponse
+    {
+        $user = auth()->user();
+
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        $ticket = $message->ticket;
+
+        // Only allow marking as read if user is assigned to this ticket
+        if ($ticket->assigned_to !== $user->id && !$user->hasRole('admin')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $message->markAsRead();
+
+        return response()->json(['success' => true, 'message' => 'Message marked as read']);
+    }
 }
 
 
