@@ -7,6 +7,35 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ config('app.name') }}</title>
     <script>
+        // Prevent flash of unstyled content by setting dark class immediately
+        (function() {
+            var theme = "{{ auth()->user()->theme_preference ?? '' }}";
+            var stored = localStorage.getItem('appearance');
+            var shouldBeDark = false;
+
+            if (theme === 'dark') {
+                shouldBeDark = true;
+            } else if (theme === 'light') {
+                shouldBeDark = false;
+            } else if (stored === 'dark') {
+                shouldBeDark = true;
+            } else if (stored === 'light') {
+                shouldBeDark = false;
+            } else {
+                // System preference - check if media query is available
+                try {
+                    shouldBeDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                } catch (e) {
+                    shouldBeDark = false;
+                }
+            }
+
+            if (shouldBeDark) {
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
+    <script>
         window.setAppearance = function(appearance) {
             let setDark = () => document.documentElement.classList.add('dark')
             let setLight = () => document.documentElement.classList.remove('dark')

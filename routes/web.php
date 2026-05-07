@@ -79,6 +79,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/tickets/{ticket}/resolve', [\App\Http\Controllers\Admin\TicketController::class, 'resolve'])->name('tickets.resolve');
     Route::delete('/tickets/{ticket}', [\App\Http\Controllers\Admin\TicketController::class, 'destroy'])->name('tickets.destroy');
     Route::post('/tickets/{ticket}/mark-read', [\App\Http\Controllers\Admin\TicketController::class, 'markMessagesAsRead'])->name('tickets.markRead');
+    Route::post('/tickets/{ticket}/mark-unread', [\App\Http\Controllers\Admin\TicketController::class, 'markMessagesAsUnread'])->name('tickets.markUnread');
     Route::post('/messages/{message}/mark-read', [\App\Http\Controllers\Admin\TicketController::class, 'markMessageAsRead'])->name('messages.markRead');
 
 

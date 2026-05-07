@@ -23,11 +23,17 @@ class TicketController extends Controller
     {
 
         if (auth()->check() && auth()->user()->hasRole('agent')) {
-            $query = Ticket::with(['facebookPage', 'assignedAgent'])
+            $query = Ticket::with(['facebookPage', 'assignedAgent', 'latestMessage'])
+                ->withCount(['messages as unread_messages_count' => function ($query) {
+                    $query->where('message_type', 'customer')->where('is_read', false);
+                }])
                 ->where('assigned_to', auth()->user()->id)
                 ->orderBy('created_at', 'desc');
         } else {
-            $query = Ticket::with(['facebookPage', 'assignedAgent'])
+            $query = Ticket::with(['facebookPage', 'assignedAgent', 'latestMessage'])
+                ->withCount(['messages as unread_messages_count' => function ($query) {
+                    $query->where('message_type', 'customer')->where('is_read', false);
+                }])
                 ->orderBy('created_at', 'desc');
         }
 
@@ -48,7 +54,11 @@ class TicketController extends Controller
 
         // Filter by assigned agent
         if ($request->filled('assigned_to') && $request->assigned_to !== 'all') {
-            $query->where('assigned_to', $request->assigned_to);
+            if ($request->assigned_to === 'unassigned') {
+                $query->whereNull('assigned_to');
+            } else {
+                $query->where('assigned_to', $request->assigned_to);
+            }
         }
 
         // Search by customer name or ticket ID
@@ -68,27 +78,46 @@ class TicketController extends Controller
             $q->whereIn('name', ['admin', 'manager']);
         })->get();
 
-        return view('admin.tickets.index', compact('tickets', 'agents', 'summaryTotal', 'summaryOpen', 'summaryInProgress', 'summaryResolved'));
+        return view('admin.tickets.index2', compact('tickets', 'agents', 'summaryTotal', 'summaryOpen', 'summaryInProgress', 'summaryResolved'));
     }
 
     /**
      * Display the specified ticket with full conversation history.
      */
-    public function show(Ticket $ticket): View
+    public function show(Ticket $ticket, Request $request): View|\Illuminate\Http\JsonResponse
     {
-        $ticket->load(['messages', 'facebookPage', 'assignedAgent', 'logs']);
+        $ticket->load([
+            'messages',
+            'facebookPage',
+            'assignedAgent',
+            'logs'
+        ]);
 
         $agents = User::whereHas('roles', function ($q) {
             $q->whereIn('name', ['agent']);
         })->get();
 
-        return view('admin.tickets.show', compact('ticket', 'agents'));
+        if ($request->ajax()) {
+
+            return response()->json([
+                'html' => view(
+                    'admin.tickets.chat-area',
+                    compact('ticket', 'agents')
+                )->render()
+            ]);
+
+        }
+
+        return view(
+            'admin.tickets.show',
+            compact('ticket', 'agents')
+        );
     }
 
     /**
      * Update ticket status or assignment.
      */
-    public function update(Request $request, Ticket $ticket): RedirectResponse
+    public function update(Request $request, Ticket $ticket)
     {
         $validated = $request->validate([
             'status' => 'nullable|in:open,in_progress,resolved,closed',
@@ -97,75 +126,152 @@ class TicketController extends Controller
             'agent_message' => 'nullable|string|min:1',
         ]);
 
-        // Store old values for logging
-        $oldStatus = $ticket->status;
-        $oldPriority = $ticket->priority;
-        $oldAssignedTo = $ticket->assigned_to;
-        $oldAgent = $ticket->assignedAgent;
+        try {
 
-        // Update ticket status/priority/assignment
-        $updates = array_filter([
-            'status' => $validated['status'] ?? null,
-            'priority' => $validated['priority'] ?? null,
-            'assigned_to' => $validated['assigned_to'] ?? null,
-        ], fn ($value) => $value !== null);
+            // Store old values for logging
+            $oldStatus = $ticket->status;
+            $oldPriority = $ticket->priority;
+            $oldAssignedTo = $ticket->assigned_to;
+            $oldAgent = $ticket->assignedAgent;
 
-        if (!empty($updates)) {
-            $ticket->update($updates);
+            // Update ticket
+            $updates = [];
 
-            // Log status change
-            if (isset($updates['status']) && $updates['status'] !== $oldStatus) {
-                TicketLogService::logStatusChange($ticket, $oldStatus, $updates['status']);
+            if (array_key_exists('status', $validated)) {
+                $updates['status'] = $validated['status'];
             }
 
-            // Log priority change
-            if (isset($updates['priority']) && $updates['priority'] !== $oldPriority) {
-                TicketLogService::logPriorityChange($ticket, $oldPriority, $updates['priority']);
+            if (array_key_exists('priority', $validated)) {
+                $updates['priority'] = $validated['priority'];
             }
 
-            // Log assignment change
-            if (isset($updates['assigned_to'])) {
-                $newAgent = User::find($updates['assigned_to']);
-                $oldAgentName = $oldAgent?->name;
-                $newAgentName = $newAgent?->name;
-                TicketLogService::logAssignment($ticket, $oldAssignedTo, $updates['assigned_to'], $oldAgentName, $newAgentName);
+            if (array_key_exists('assigned_to', $validated)) {
+                $updates['assigned_to'] = $validated['assigned_to'];
             }
-        }
 
-        // Add agent message if provided
-        if ($request->filled('agent_message')) {
-            $ticket->loadMissing('facebookPage');
+            if (!empty($updates)) {
 
-            $agentMessage = $validated['agent_message'];
-            $ticket->addMessage(
-                facebookMessageId: uniqid('agent_'),
-                senderFacebookId: auth()->user()->id,
-                message: $agentMessage,
-                messageType: 'agent',
-                channel: 'messenger'
-            );
+                $ticket->update($updates);
 
-            // Log message addition
-            TicketLogService::logMessageAdded($ticket, 'agent');
+                // Status log
+                if (
+                    isset($updates['status']) &&
+                    $updates['status'] !== $oldStatus
+                ) {
+                    TicketLogService::logStatusChange(
+                        $ticket,
+                        $oldStatus,
+                        $updates['status']
+                    );
+                }
 
-            if ($ticket->facebookPage?->page_token && $ticket->customer_facebook_id) {
-                try {
-                    Http::post('https://graph.facebook.com/v25.0/me/messages', [
-                        'access_token' => $ticket->facebookPage->page_token,
-                        'recipient' => ['id' => $ticket->customer_facebook_id],
-                        'message' => ['text' => $agentMessage],
-                    ]);
+                // Priority log
+                if (
+                    isset($updates['priority']) &&
+                    $updates['priority'] !== $oldPriority
+                ) {
+                    TicketLogService::logPriorityChange(
+                        $ticket,
+                        $oldPriority,
+                        $updates['priority']
+                    );
+                }
 
+                // Assignment log
+                if (array_key_exists('assigned_to', $updates)) {
 
-                } catch (\Exception $e) {
-                    // Do not fail ticket update just because the send failed.
-                    report($e);
+                    $newAgent = User::find($updates['assigned_to']);
+
+                    $oldAgentName = $oldAgent?->name;
+                    $newAgentName = $newAgent?->name;
+
+                    TicketLogService::logAssignment(
+                        $ticket,
+                        $oldAssignedTo,
+                        $updates['assigned_to'],
+                        $oldAgentName,
+                        $newAgentName
+                    );
                 }
             }
-        }
 
-        return redirect()->route('tickets.show', $ticket)
-            ->with('success', 'Ticket updated successfully');
+            // Agent message
+            if ($request->filled('agent_message')) {
+
+                $ticket->loadMissing('facebookPage');
+
+                $agentMessage = $validated['agent_message'];
+
+                $message = $ticket->addMessage(
+                    facebookMessageId: uniqid('agent_'),
+                    senderFacebookId: auth()->id(),
+                    message: $agentMessage,
+                    messageType: 'agent',
+                    channel: 'messenger'
+                );
+
+                TicketLogService::logMessageAdded($ticket, 'agent');
+
+                // Send Facebook Message
+                if (
+                    $ticket->facebookPage?->page_token &&
+                    $ticket->customer_facebook_id
+                ) {
+
+                    try {
+
+                        $fbResponse = Http::post(
+                            'https://graph.facebook.com/v25.0/me/messages',
+                            [
+                                'access_token' => $ticket->facebookPage->page_token,
+                                'recipient' => [
+                                    'id' => $ticket->customer_facebook_id
+                                ],
+                                'message' => [
+                                    'text' => $agentMessage
+                                ],
+                            ]
+                        );
+
+                    } catch (\Exception $e) {
+
+                        report($e);
+                    }
+                }
+            }
+
+            $lastMessage = $ticket->messages()
+                        ->latest()
+                        ->first();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Ticket updated successfully',
+
+                'ticket_id' => $ticket->id,
+                'ticket_status' => $ticket->status,
+                'priority' => $ticket->priority,
+                'assigned_to' => $ticket->assigned_to,
+
+                'chat_message' => [
+                    'id' => $lastMessage?->id,
+                    'message' => $lastMessage?->message,
+                    'message_type' => $lastMessage?->message_type,
+                    'created_at' => optional($lastMessage?->created_at)->toDateTimeString(),
+                ]
+            ]);
+
+
+
+        } catch (\Exception $e) {
+
+            report($e);
+
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**
@@ -174,20 +280,28 @@ class TicketController extends Controller
     public function assign(Request $request, Ticket $ticket): RedirectResponse
     {
         $validated = $request->validate([
-            'assigned_to' => 'required|exists:users,id',
+            'assigned_to' => 'nullable|exists:users,id',
         ]);
 
         $oldAssignedTo = $ticket->assigned_to;
         $oldAgent = $ticket->assignedAgent;
-        $newAgent = User::find($validated['assigned_to']);
+        $newAgent = $validated['assigned_to'] ? User::find($validated['assigned_to']) : null;
 
         $ticket->update($validated);
 
-        // Log assignment
-        TicketLogService::logAssignment($ticket, $oldAssignedTo, $validated['assigned_to'], $oldAgent?->name, $newAgent?->name);
+        // Log assignment or unassignment
+        if ($oldAssignedTo !== $validated['assigned_to']) {
+            TicketLogService::logAssignment(
+                $ticket,
+                $oldAssignedTo,
+                $validated['assigned_to'],
+                $oldAgent?->name,
+                $newAgent?->name
+            );
+        }
 
         return redirect()->route('tickets.show', $ticket)
-            ->with('success', 'Ticket assigned successfully');
+            ->with('success', 'Ticket assignment updated successfully');
     }
 
     /**
@@ -310,6 +424,40 @@ class TicketController extends Controller
         return response()->json([
             'success' => true,
             'message' => "{$updated} messages marked as read"
+        ]);
+    }
+
+    /**
+     * Mark all customer messages on a ticket as unread.
+     */
+    public function markMessagesAsUnread(Ticket $ticket): JsonResponse
+    {
+        $user = auth()->user();
+
+        if (!$user) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 401);
+        }
+
+        if ($ticket->assigned_to !== $user->id && !$user->hasRole('admin')) {
+            return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
+        }
+
+        $updated = $ticket->messages()
+            ->where('message_type', 'customer')
+            ->update([
+                'is_read' => false,
+                'read_at' => null,
+            ]);
+
+        $unreadCount = $ticket->messages()
+            ->where('message_type', 'customer')
+            ->where('is_read', false)
+            ->count();
+
+        return response()->json([
+            'success' => true,
+            'message' => "{$updated} messages marked as unread",
+            'unread_count' => $unreadCount,
         ]);
     }
 

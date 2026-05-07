@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Ticket extends Model
@@ -50,6 +51,14 @@ class Ticket extends Model
     public function messages(): HasMany
     {
         return $this->hasMany(SupportMessage::class)->orderBy('created_at', 'asc');
+    }
+
+    /**
+     * Get the latest message in this ticket.
+     */
+    public function latestMessage(): HasOne
+    {
+        return $this->hasOne(SupportMessage::class)->latestOfMany();
     }
 
     /**

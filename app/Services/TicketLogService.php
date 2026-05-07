@@ -62,6 +62,14 @@ class TicketLogService
                 'action' => 'assigned',
                 'new_value' => $newAgentName,
             ]);
+        } elseif ($oldAgentId !== null && $newAgentId === null) {
+            // Unassigned
+            TicketLog::create([
+                'ticket_id' => $ticket->id,
+                'user_id' => Auth::id(),
+                'action' => 'unassigned',
+                'old_value' => $oldAgentName,
+            ]);
         } elseif ($oldAgentId !== null && $newAgentId !== null && $oldAgentId !== $newAgentId) {
             // Reassignment
             TicketLog::create([
