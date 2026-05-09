@@ -1,0 +1,63 @@
+# UI feature
+-- Facebook / Comment detect - icon show based this
+-- Agent Active / Inactive Detect
+-- Agent wise pending ticket
+-- Ticket id, created at show on header
+-- If comment - show post text on top
+-- Customer info show on right
+-- customer name on the conversation
+-- Replied by page name
+-- Store the agent id when reply
+-- All pages list which shows , how many message pending message
+
+
+# All List for conversation
+-- Unassigned conversation
+-- file handle
+-- Message day wise
+-- Ticket log
+-- Each message agent name
+
+# Assign
+-- First assign Agent to Facebook page
+-- When ticket created get all assign agent
+-- Check active agent
+-- On Active agent check load
+-- Less load agent assign ticket / if less load have same multiple agent assigned who replied latest
+-- If no agent active Unassigned
+
+
+# Agent Status
+-- online	Available
+-- busy	Reached max chats
+-- away	Temporarily inactive
+-- offline	Cannot receive chats
+
+# Ticket Status
+-- New: First customer message, no agent touched yet
+-- Assigned : Auto / manual assigned to agent
+-- Open: Agent replied, active conversation
+-- pending_customer: Waiting for customer reply
+-- pending_internal: Waiting for internal team
+-- resolved: Issue solved
+-- closed: Conversation locked / archive
+-- Spam: Spam / junk
+-- Unassigned: No available agent
+
+# Message Status
+-- sent: Stored successfully
+-- delivered: Delivered to platform
+-- received: Webhook received
+-- read: Seen by agent /customer
+-- failed: Sending failed
+
+# Feature need
+-- Conversation name Edit
+-- Notes, Event
+-- Mention User
+-- Audio, video, Image , pdf show
+-- Direct message
+-- Conversation History
+-- On a conversation load only first 10 messages
+
+

@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\FacebookAuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\RolePermissionController;
+use App\Http\Controllers\Admin\SupportQueueController;
 use App\Http\Controllers\Admin\UserController;
 
 
@@ -125,7 +126,16 @@ Route::middleware(['auth'])->group(function () {
         Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
         Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
 
-
+        // Support queue management
+        Route::get('/support-queues', [SupportQueueController::class, 'index'])->name('support-queues.index');
+        Route::get('/support-queues/create', [SupportQueueController::class, 'create'])->name('support-queues.create');
+        Route::post('/support-queues', [SupportQueueController::class, 'store'])->name('support-queues.store');
+        Route::get('/support-queues/{supportQueue}', [SupportQueueController::class, 'show'])->name('support-queues.show');
+        Route::get('/support-queues/{supportQueue}/edit', [SupportQueueController::class, 'edit'])->name('support-queues.edit');
+        Route::put('/support-queues/{supportQueue}', [SupportQueueController::class, 'update'])->name('support-queues.update');
+        Route::post('/support-queues/{supportQueue}/assign', [SupportQueueController::class, 'assignBoth'])->name('support-queues.assign');
+        Route::post('/support-queues/{supportQueue}/pages', [SupportQueueController::class, 'assignPages'])->name('support-queues.assign-pages');
+        Route::post('/support-queues/{supportQueue}/agents', [SupportQueueController::class, 'assignAgents'])->name('support-queues.assign-agents');
     });
 
 });

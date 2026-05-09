@@ -21,6 +21,8 @@ class Ticket extends Model
         'status',
         'priority',
         'assigned_to',
+        'support_queue_id',
+        'channel'
     ];
 
     protected $casts = [
@@ -43,6 +45,11 @@ class Ticket extends Model
     public function assignedAgent(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    public function supportQueue(): BelongsTo
+    {
+        return $this->belongsTo(SupportQueue::class, 'support_queue_id');
     }
 
     /**

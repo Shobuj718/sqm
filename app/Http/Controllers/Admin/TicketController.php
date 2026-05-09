@@ -442,12 +442,16 @@ class TicketController extends Controller
             return response()->json(['success' => false, 'message' => 'Unauthorized'], 403);
         }
 
-        $updated = $ticket->messages()
+        $lastMessage = $ticket->messages()
             ->where('message_type', 'customer')
-            ->update([
-                'is_read' => false,
-                'read_at' => null,
-            ]);
+            ->latest('id')
+            ->first();
+
+        if ($lastMessage) {
+            $lastMessage->is_read = false;
+            $lastMessage->read_at = null;
+            $lastMessage->save();
+        }
 
         $unreadCount = $ticket->messages()
             ->where('message_type', 'customer')
@@ -456,7 +460,7 @@ class TicketController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => "{$updated} messages marked as unread",
+            'message' => "messages marked as unread",
             'unread_count' => $unreadCount,
         ]);
     }

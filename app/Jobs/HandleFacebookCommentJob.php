@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Ticket;
+use App\Services\TicketAssignmentService;
 use App\Services\TicketLogService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -52,6 +53,8 @@ class HandleFacebookCommentJob implements ShouldQueue
         $ticket = $this->getOrCreateTicket();
 
         if ($ticket) {
+            app(TicketAssignmentService::class)->assignTicketFromPageQueue($ticket);
+
             // Add message to ticket
             $ticket->addMessage(
                 facebookMessageId: $this->commentId,
@@ -106,6 +109,7 @@ class HandleFacebookCommentJob implements ShouldQueue
                 'customer_facebook_id' => $this->fromId,
                 'customer_name' => $this->getCustomerName(),
                 'subject' => 'Comment Support Request - ' . now()->format('Y-m-d H:i'),
+                'channel' => 'comment',
                 'initial_message' => $this->message,
                 'status' => 'open',
                 'priority' => 'medium',

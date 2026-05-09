@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Events\NewTicketMessage;
 use App\Models\Ticket;
+use App\Services\TicketAssignmentService;
 use App\Services\TicketLogService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -54,6 +55,9 @@ class HandleFacebookMessageJob implements ShouldQueue
             ]);
             return;
         }
+
+        // Assign the ticket to the page queue if needed.
+        app(TicketAssignmentService::class)->assignTicketFromPageQueue($ticket);
 
         // Add customer message to ticket
         $customerMessage = $ticket->addMessage(
@@ -135,6 +139,7 @@ class HandleFacebookMessageJob implements ShouldQueue
                 'customer_name' => $this->getCustomerName(),
                 'subject' => 'Support Request - ' . now()->format('Y-m-d H:i'),
                 'initial_message' => $this->message,
+                'channel' => 'messenger',
                 'status' => 'open',
                 'priority' => 'medium',
             ]);

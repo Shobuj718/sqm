@@ -195,17 +195,7 @@
                                     <span class="text-[10px] font-medium text-[#1877f2]">
                                         {{ $ticket->facebookPage?->name }}
                                     </span>
-                                    <div class="flex gap-0.5">
-                                        <span class="inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold {{ $ticket->status === 'open' ? 'bg-yellow-100 text-yellow-800' : ($ticket->status === 'in_progress' ? 'bg-blue-100 text-blue-800' : ($ticket->status === 'resolved' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800')) }}">
-                                            {{ ucfirst(str_replace('_', ' ', $ticket->status)) }}
-                                        </span>
-                                        <span class="inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-semibold {{ $ticket->priority === 'urgent' ? 'bg-red-100 text-red-800' : ($ticket->priority === 'high' ? 'bg-orange-100 text-orange-800' : ($ticket->priority === 'medium' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800')) }}">
-                                            {{ ucfirst($ticket->priority ?? 'Normal') }}
-                                        </span>
-                                        <span class="inline-flex items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold text-slate-700">
-                                            {{ $ticket->assignedAgent?->name ? $ticket->assignedAgent->name : 'Unassigned' }}
-                                        </span>
-                                    </div>
+                                    
                                 </div>
 
                             </div>

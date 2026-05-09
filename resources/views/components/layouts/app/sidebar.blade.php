@@ -19,6 +19,8 @@
                                         :active="request()->routeIs('admin.roles*')">Roles</x-layouts.sidebar-two-level-link>
                                     <x-layouts.sidebar-two-level-link href="{{ route('admin.permissions') }}" icon='fas-key'
                                         :active="request()->routeIs('admin.permissions*')">Permissions</x-layouts.sidebar-two-level-link>
+                                    <x-layouts.sidebar-two-level-link href="{{ route('admin.support-queues.index') }}" icon='fas-tasks'
+                                        :active="request()->routeIs('admin.support-queues*')">Support Queues</x-layouts.sidebar-two-level-link>
                                 </x-layouts.sidebar-two-level-link-parent>
                             @endif
 
