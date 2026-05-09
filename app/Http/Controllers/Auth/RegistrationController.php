@@ -30,6 +30,7 @@ class RegistrationController extends Controller
 
         $validated['password'] = Hash::make($validated['password']);
         $validated['role'] = User::ROLE_USER;
+        $validated['availability_status'] = User::STATUS_ONLINE;
 
         event(new Registered(($user = User::create($validated))));
 

@@ -153,6 +153,63 @@
                     }
                 </script>
             </div>
+
+            <div x-data="{ open: false }" class="relative">
+                @php
+                    $currentStatus = auth()->user()->availability_status ?? 'offline';
+                    $statusClasses = [
+                        'online' => 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+                        'busy' => 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+                        'away' => 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+                        'offline' => 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
+                    ];
+                @endphp
+                <button @click="open = !open"
+                    class="flex items-center gap-2 px-3 py-2 rounded-md border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none transition-colors duration-200">
+                    <span class="inline-flex h-2.5 w-2.5 rounded-full {{ $statusClasses[$currentStatus] ?? $statusClasses['offline'] }}"></span>
+                    <span>{{ ucfirst($currentStatus) }}</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+
+                <div x-show="open" @click.away="open = false" x-transition
+                    class="absolute right-0 mt-2 w-44 bg-white dark:bg-gray-800 rounded-md shadow-lg py-1 z-50 border border-gray-200 dark:border-gray-700">
+                    <form id="header-status-form" action="{{ route('settings.status.update') }}" method="POST">
+                        @csrf
+                        @method('PUT')
+                        <input type="hidden" name="availability_status" id="header_availability_status">
+
+                        <button type="button" onclick="setAgentStatus('online')"
+                            class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
+                            Online
+                        </button>
+                        <button type="button" onclick="setAgentStatus('busy')"
+                            class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
+                            Busy
+                        </button>
+                        <button type="button" onclick="setAgentStatus('away')"
+                            class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
+                            Away
+                        </button>
+                        <button type="button" onclick="setAgentStatus('offline')"
+                            class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">
+                            Offline
+                        </button>
+                    </form>
+                </div>
+
+                <script>
+                    window.setAgentStatus = function(status) {
+                        const form = document.getElementById('header-status-form');
+                        const input = document.getElementById('header_availability_status');
+                        if (form && input) {
+                            input.value = status;
+                            form.submit();
+                        }
+                    }
+                </script>
+            </div>
             <!-- Profile -->
             <div x-data="{ open: false }" class="relative">
                 <button @click="open = !open" class="flex items-center focus:outline-none">

@@ -26,6 +26,7 @@ Route::middleware(['auth'])->group(function () {
     Route::put('settings/password', [Settings\PasswordController::class, 'update'])->name('settings.password.update');
     Route::get('settings/appearance', [Settings\AppearanceController::class, 'edit'])->name('settings.appearance.edit');
     Route::put('settings/appearance', [Settings\AppearanceController::class, 'update'])->name('settings.appearance.update');
+    Route::put('settings/status', [Settings\StatusController::class, 'update'])->name('settings.status.update');
     Route::get('settings/facebook', [Settings\FacebookController::class, 'edit'])->name('settings.facebook.edit');
     Route::put('settings/facebook', [Settings\FacebookController::class, 'update'])->name('settings.facebook.update');
 

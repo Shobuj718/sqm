@@ -193,6 +193,19 @@ class TicketController extends Controller
                         $newAgentName
                     );
                 }
+
+                // Refresh availability status for affected agents.
+                $affectedAgentIds = collect();
+                if ($oldAssignedTo) {
+                    $affectedAgentIds->push($oldAssignedTo);
+                }
+                if ($ticket->assigned_to) {
+                    $affectedAgentIds->push($ticket->assigned_to);
+                }
+
+                $affectedAgentIds->unique()->each(function ($agentId) {
+                    User::find($agentId)?->refreshAvailabilityStatusBasedOnLoad();
+                });
             }
 
             // Agent message
@@ -300,6 +313,12 @@ class TicketController extends Controller
             );
         }
 
+        if ($oldAssignedTo) {
+            User::find($oldAssignedTo)?->refreshAvailabilityStatusBasedOnLoad();
+        }
+
+        $newAgent?->refreshAvailabilityStatusBasedOnLoad();
+
         return redirect()->route('tickets.show', $ticket)
             ->with('success', 'Ticket assignment updated successfully');
     }
@@ -315,6 +334,8 @@ class TicketController extends Controller
         // Log status change
         TicketLogService::logStatusChange($ticket, $oldStatus, 'closed');
 
+        $ticket->assignedAgent?->refreshAvailabilityStatusBasedOnLoad();
+
         return redirect()->route('tickets.show', $ticket)
             ->with('success', 'Ticket closed successfully');
     }
@@ -329,6 +350,8 @@ class TicketController extends Controller
 
         // Log status change
         TicketLogService::logStatusChange($ticket, $oldStatus, 'resolved');
+
+        $ticket->assignedAgent?->refreshAvailabilityStatusBasedOnLoad();
 
         return redirect()->route('tickets.show', $ticket)
             ->with('success', 'Ticket resolved successfully');

@@ -56,8 +56,12 @@ class HandleFacebookMessageJob implements ShouldQueue
             return;
         }
 
+        Log::info('before queue assigned');
+
         // Assign the ticket to the page queue if needed.
         app(TicketAssignmentService::class)->assignTicketFromPageQueue($ticket);
+
+        Log::info('after queue assigned');
 
         // Add customer message to ticket
         $customerMessage = $ticket->addMessage(

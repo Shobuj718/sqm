@@ -19,6 +19,11 @@ class User extends Authenticatable
     public const ROLE_MANAGER = 'manager';
     public const ROLE_USER = 'agent';
 
+    public const STATUS_ONLINE = 'online';
+    public const STATUS_BUSY = 'busy';
+    public const STATUS_AWAY = 'away';
+    public const STATUS_OFFLINE = 'offline';
+
     /**
      * The attributes that are mass assignable.
      *
@@ -30,6 +35,7 @@ class User extends Authenticatable
         'password',
         'theme_preference',
         'role',
+        'availability_status',
     ];
 
     /**
@@ -79,6 +85,37 @@ class User extends Authenticatable
     public function supportQueues(): BelongsToMany
     {
         return $this->belongsToMany(SupportQueue::class, 'support_queue_user');
+    }
+
+    public function isAvailableForAssignment(): bool
+    {
+        return $this->availability_status === self::STATUS_ONLINE;
+    }
+
+    public function refreshAvailabilityStatusBasedOnLoad(): void
+    {
+        $activeCount = $this->tickets()
+            ->whereIn('status', ['open', 'in_progress'])
+            ->count();
+
+        if ($activeCount >= 25 && $this->availability_status !== self::STATUS_BUSY) {
+            $this->update(['availability_status' => self::STATUS_BUSY]);
+            return;
+        }
+
+        if ($activeCount < 25 && $this->availability_status === self::STATUS_BUSY) {
+            $this->update(['availability_status' => self::STATUS_ONLINE]);
+        }
+    }
+
+    public static function availabilityStatuses(): array
+    {
+        return [
+            self::STATUS_ONLINE,
+            self::STATUS_BUSY,
+            self::STATUS_AWAY,
+            self::STATUS_OFFLINE,
+        ];
     }
 
     /**

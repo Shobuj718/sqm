@@ -195,7 +195,7 @@
                                     <span class="text-[10px] font-medium text-[#1877f2]">
                                         {{ $ticket->facebookPage?->name }}
                                     </span>
-                                    
+
                                 </div>
 
                             </div>
@@ -627,6 +627,7 @@
                     message.message
                 );
             }
+
 
             if (String(ticketId) === String(currentTicketId)) {
                 appendMessage(message);

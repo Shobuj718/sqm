@@ -55,5 +55,63 @@
                             </x-layouts.sidebar-two-level-link-parent> --}}
                         </ul>
                     </nav>
+
+                    <div x-data="{ open: false, selectedAgent: null }" @click.away="open = false" class="relative border-t border-gray-200 dark:border-gray-700 p-3 flex-shrink-0">
+                        <button @click="open = !open"
+                            class="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-blue-500 hover:text-blue-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-blue-400 dark:hover:text-blue-300"
+                            :class="sidebarOpen ? 'justify-between' : 'justify-center'">
+                            <span class="inline-flex items-center gap-2">
+                                <i class="fas fa-user-friends"></i>
+                                <span x-show="sidebarOpen" class="whitespace-nowrap">Agent status</span>
+                            </span>
+                            <span class="inline-flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-blue-100 px-2 text-xs font-semibold text-blue-700 dark:bg-blue-900 dark:text-blue-100">{{ $sidebarAgents->count() }}</span>
+                        </button>
+
+                        <div x-show="open" x-transition x-cloak class="absolute bottom-16 left-0 w-full z-20 overflow-hidden rounded-2xl border border-gray-200 bg-white p-3 text-sm text-gray-700 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                            @php
+                                $statusClasses = [
+                                    'online' => 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100',
+                                    'busy' => 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100',
+                                    'away' => 'bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100',
+                                    'offline' => 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200',
+                                ];
+                            @endphp
+
+                            <div class="max-h-[360px] overflow-y-auto space-y-3">
+                                @forelse($sidebarAgents as $agent)
+                                    <div class="rounded-2xl border border-gray-100 px-3 py-3 dark:border-gray-800">
+                                        <button type="button" @click="selectedAgent = selectedAgent === {{ $agent->id }} ? null : {{ $agent->id }}"
+                                            class="flex w-full items-center justify-between text-left">
+                                            <div>
+                                                <div class="font-medium text-sm">{{ $agent->name }}</div>
+                                                <div class="text-xs text-gray-500 dark:text-gray-400">Pending: {{ $agent->pending_tickets_count }}</div>
+                                            </div>
+                                            <span class="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold {{ $statusClasses[$agent->availability_status ?? 'offline'] ?? $statusClasses['offline'] }}">
+                                                {{ ucfirst($agent->availability_status ?? 'offline') }}
+                                            </span>
+                                        </button>
+
+                                        <div x-show="selectedAgent === {{ $agent->id }}" x-transition x-cloak class="mt-3 space-y-2 rounded-2xl bg-gray-50 p-3 dark:bg-gray-800">
+                                            @if($agent->tickets->isNotEmpty())
+                                                <div class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Pending tickets</div>
+                                                <ul class="space-y-2">
+                                                    @foreach($agent->tickets as $ticket)
+                                                        <li class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs dark:border-gray-700 dark:bg-gray-900">
+                                                            <div class="font-medium">#{{ $ticket->id }} - {{ \Illuminate\Support\Str::limit($ticket->subject, 32) }}</div>
+                                                            <div class="text-[11px] text-gray-500 dark:text-gray-400">Status: {{ ucfirst(str_replace('_', ' ', $ticket->status)) }}</div>
+                                                        </li>
+                                                    @endforeach
+                                                </ul>
+                                            @else
+                                                <div class="text-xs text-gray-500 dark:text-gray-400">No pending tickets for this agent.</div>
+                                            @endif
+                                        </div>
+                                    </div>
+                                @empty
+                                    <div class="text-sm text-gray-500 dark:text-gray-400">No agents available.</div>
+                                @endforelse
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </aside>

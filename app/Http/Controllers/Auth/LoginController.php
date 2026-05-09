@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -40,11 +41,22 @@ class LoginController extends Controller
 
         $request->session()->regenerate();
 
+        $user = Auth::user();
+        if ($user) {
+            $user->update(['availability_status' => User::STATUS_ONLINE]);
+            $user->refreshAvailabilityStatusBasedOnLoad();
+        }
+
         return redirect()->intended(route('dashboard', absolute: false));
     }
 
     public function destroy(Request $request): RedirectResponse
     {
+        $user = Auth::user();
+        if ($user) {
+            $user->update(['availability_status' => User::STATUS_OFFLINE]);
+        }
+
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();

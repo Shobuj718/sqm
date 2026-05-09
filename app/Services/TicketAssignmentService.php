@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Ticket;
+use App\Models\User;
 use App\Services\TicketLogService;
 use Illuminate\Support\Facades\Log;
 
@@ -30,6 +31,7 @@ class TicketAssignmentService
         }
 
         $agent = $queue->users()
+            ->where('availability_status', User::STATUS_ONLINE)
             ->withCount(['tickets as active_ticket_count' => function ($query) {
                 $query->whereIn('status', ['open', 'in_progress']);
             }])
@@ -61,6 +63,8 @@ class TicketAssignmentService
                 $agent->name
             );
         }
+
+        $agent->refreshAvailabilityStatusBasedOnLoad();
 
         return $agent->id;
     }
