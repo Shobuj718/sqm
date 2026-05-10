@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\TicketLogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Log;
@@ -119,14 +120,14 @@ class TicketController extends Controller
      */
     public function update(Request $request, Ticket $ticket)
     {
-        $validated = $request->validate([
-            'status' => 'nullable|in:open,in_progress,resolved,closed',
-            'priority' => 'nullable|in:low,medium,high,urgent',
-            'assigned_to' => 'nullable|exists:users,id',
-            'agent_message' => 'nullable|string|min:1',
-        ]);
-
         try {
+            $validated = $request->validate([
+                'status' => 'nullable|in:open,in_progress,resolved,closed',
+                'priority' => 'nullable|in:low,medium,high,urgent',
+                'assigned_to' => 'nullable|exists:users,id',
+                'agent_message' => 'nullable|string',
+                'attachments.*' => 'file|max:10240',
+            ]);
 
             // Store old values for logging
             $oldStatus = $ticket->status;
@@ -150,7 +151,6 @@ class TicketController extends Controller
             }
 
             if (!empty($updates)) {
-
                 $ticket->update($updates);
 
                 // Status log
@@ -179,9 +179,7 @@ class TicketController extends Controller
 
                 // Assignment log
                 if (array_key_exists('assigned_to', $updates)) {
-
                     $newAgent = User::find($updates['assigned_to']);
-
                     $oldAgentName = $oldAgent?->name;
                     $newAgentName = $newAgent?->name;
 
@@ -208,65 +206,94 @@ class TicketController extends Controller
                 });
             }
 
-            // Agent message
-            if ($request->filled('agent_message')) {
-
+            // Agent message or attachments
+            if ($request->filled('agent_message') || $request->hasFile('attachments')) {
                 $ticket->loadMissing('facebookPage');
+                $agentMessage = $validated['agent_message'] ?? '';
+                $attachments = [];
 
-                $agentMessage = $validated['agent_message'];
+                foreach ($request->file('attachments', []) as $attachmentFile) {
+                    if (!$attachmentFile->isValid()) {
+                        continue;
+                    }
+
+                    $path = $attachmentFile->store('ticket-attachments', 'public');
+                    $attachments[] = [
+                        'type' => $this->detectAttachmentType($attachmentFile),
+                        'payload' => [
+                            'url' => Storage::url($path),
+                            'name' => $attachmentFile->getClientOriginalName(),
+                        ],
+                    ];
+                }
 
                 $message = $ticket->addMessage(
                     facebookMessageId: uniqid('agent_'),
                     senderFacebookId: auth()->id(),
                     message: $agentMessage,
-                    attachments: [],
+                    attachments: $attachments,
                     messageType: 'agent',
                     channel: 'messenger'
                 );
 
                 TicketLogService::logMessageAdded($ticket, 'agent');
 
-                // Send Facebook Message
+                // Send Facebook Message and attachments
                 if (
                     $ticket->facebookPage?->page_token &&
                     $ticket->customer_facebook_id
                 ) {
-
                     try {
-
-                        $fbResponse = Http::post(
-                            'https://graph.facebook.com/v25.0/me/messages',
-                            [
+                        // Send the text portion first if present.
+                        if (!empty($agentMessage)) {
+                            Http::post('https://graph.facebook.com/v25.0/me/messages', [
                                 'access_token' => $ticket->facebookPage->page_token,
                                 'recipient' => [
-                                    'id' => $ticket->customer_facebook_id
+                                    'id' => $ticket->customer_facebook_id,
                                 ],
                                 'message' => [
-                                    'text' => $agentMessage
+                                    'text' => $agentMessage,
                                 ],
-                            ]
-                        );
+                            ]);
+                        }
 
+                        // Send each attachment as a separate message payload.
+                        foreach ($attachments as $attachment) {
+                            $fbAttachment = [
+                                'type' => $attachment['type'],
+                                'payload' => [
+                                    'url' => $attachment['payload']['url'],
+                                    'is_reusable' => true,
+                                ],
+                            ];
+
+                            Http::post('https://graph.facebook.com/v25.0/me/messages', [
+                                'access_token' => $ticket->facebookPage->page_token,
+                                'recipient' => [
+                                    'id' => $ticket->customer_facebook_id,
+                                ],
+                                'message' => [
+                                    'attachment' => $fbAttachment,
+                                ],
+                            ]);
+                        }
                     } catch (\Exception $e) {
-
                         report($e);
                     }
                 }
             }
 
             $lastMessage = $ticket->messages()
-                            ->reorder('id', 'desc')
-                            ->first();
+                ->reorder('id', 'desc')
+                ->first();
 
             return response()->json([
                 'status' => 'success',
                 'message' => 'Ticket updated successfully',
-
                 'ticket_id' => $ticket->id,
                 'ticket_status' => $ticket->status,
                 'priority' => $ticket->priority,
                 'assigned_to' => $ticket->assigned_to,
-
                 'chat_message' => [
                     'id' => $lastMessage?->id,
                     'message' => $lastMessage?->message,
@@ -278,17 +305,32 @@ class TicketController extends Controller
                 ]
             ]);
 
-
-
         } catch (\Exception $e) {
-
-            report($e);
 
             return response()->json([
                 'status' => 'error',
                 'message' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    private function detectAttachmentType($file): string
+    {
+        $mimeType = $file->getMimeType() ?? '';
+
+        if (str_starts_with($mimeType, 'image/')) {
+            return 'image';
+        }
+
+        if (str_starts_with($mimeType, 'video/')) {
+            return 'video';
+        }
+
+        if (str_starts_with($mimeType, 'audio/')) {
+            return 'audio';
+        }
+
+        return 'file';
     }
 
     /**

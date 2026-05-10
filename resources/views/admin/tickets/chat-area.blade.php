@@ -236,6 +236,7 @@
 
                     <button
                         type="button"
+                        id="attach-file-btn"
                         class="h-10 w-10 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition flex items-center justify-center text-gray-600 dark:text-gray-400"
                         title="Attach file"
                     >
@@ -254,6 +255,7 @@
                         </svg>
 
                     </button>
+                    <input type="file" id="reply-attachments" name="attachments[]" class="hidden" multiple>
 
                     <button
                         type="button"
@@ -280,6 +282,8 @@
                         placeholder="Write a message... (Press Enter to send)"
                         class="w-full resize-none bg-gray-100 dark:bg-gray-700 border border-transparent focus:border-[#1877f2] dark:focus:border-blue-400 px-4 py-2.5 rounded-2xl text-sm outline-none leading-relaxed max-h-32 overflow-y-auto text-gray-800 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 transition"
                     ></textarea>
+
+                    <div id="attachment-preview" class="mt-2 text-xs text-gray-500 dark:text-gray-400"></div>
 
                     {{-- SEND --}}
                     <button

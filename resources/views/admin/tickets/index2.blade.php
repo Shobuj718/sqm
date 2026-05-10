@@ -362,6 +362,9 @@
 
             const form =
                 document.getElementById('reply-form');
+            const attachButton = document.getElementById('attach-file-btn');
+            const fileInput = document.getElementById('reply-attachments');
+            const attachmentPreview = document.getElementById('attachment-preview');
 
             if (!form) {
                 return;
@@ -374,6 +377,16 @@
                 sendReply();
 
             });
+
+            if (attachButton && fileInput) {
+                attachButton.addEventListener('click', function() {
+                    fileInput.click();
+                });
+
+                fileInput.addEventListener('change', function() {
+                    updateAttachmentPreview(attachmentPreview, fileInput.files);
+                });
+            }
 
             // Handle Enter key to send message
             const textarea = document.getElementById('agent_message');
@@ -392,6 +405,21 @@
                 });
             }
 
+        }
+
+        function updateAttachmentPreview(attachmentPreview, files)
+        {
+            if (!attachmentPreview) {
+                return;
+            }
+
+            if (!files || files.length === 0) {
+                attachmentPreview.textContent = '';
+                return;
+            }
+
+            const names = Array.from(files).map(file => file.name);
+            attachmentPreview.textContent = `Attached: ${names.join(', ')}`;
         }
 
         function bindTicketControls()
@@ -424,6 +452,7 @@
                     `/tickets/${currentTicketId}`,
                     {
                         method: 'PUT',
+                        credentials: 'same-origin',
                         headers: {
                             'Content-Type': 'application/json',
                             'X-CSRF-TOKEN': '{{ csrf_token() }}',
@@ -461,30 +490,35 @@
             const textarea =
                 document.getElementById('agent_message');
 
-            const message =
-                textarea.value.trim();
+            const message = textarea.value.trim();
+            const fileInput = document.getElementById('reply-attachments');
+            const files = fileInput?.files || [];
 
-            if (!message) {
+            if (!message && files.length === 0) {
                 return;
             }
 
             try {
 
+                const formData = new FormData();
+                formData.append('_token', '{{ csrf_token() }}');
+                formData.append('agent_message', message);
+
+                Array.from(files).forEach((file, index) => {
+                    formData.append('attachments[]', file);
+                });
+
                 const response = await fetch(
                     `/tickets/${currentTicketId}`,
                     {
                         method: 'PUT',
-
+                        credentials: 'same-origin',
                         headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
                             'Accept': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest'
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
                         },
-
-                        body: JSON.stringify({
-                            agent_message: message
-                        })
+                        body: formData
                     }
                 );
 
@@ -494,6 +528,10 @@
 
                     textarea.value = '';
                     textarea.style.height = 'auto';
+                    if (fileInput) {
+                        fileInput.value = '';
+                        updateAttachmentPreview(document.getElementById('attachment-preview'), []);
+                    }
 
                     appendMessage(data.chat_message);
 
@@ -703,6 +741,20 @@
 
         }
 
+        function escapeHtml(unsafe)
+        {
+            if (unsafe === undefined || unsafe === null) {
+                return '';
+            }
+
+            return String(unsafe)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
         function subscribeToTicketChannel(ticketId)
         {
             if (!ticketId || !window.Echo) {
@@ -882,6 +934,7 @@
         {
             const existingItem = document.querySelector(`.conversation-item[data-id="${ticket.id}"]`);
             if (existingItem) {
+                moveConversationItemToTop(existingItem);
                 return;
             }
 
@@ -900,6 +953,19 @@
             if (newItem) {
                 bindConversationEvent(newItem);
                 subscribeToTicketChannel(ticket.id);
+            }
+        }
+
+        function moveConversationItemToTop(item)
+        {
+            if (!item || !item.parentElement) {
+                return;
+            }
+
+            const container = item.parentElement;
+            const firstItem = container.firstElementChild;
+            if (firstItem && firstItem !== item) {
+                container.insertBefore(item, firstItem);
             }
         }
 
@@ -933,6 +999,8 @@
                 }
                 item.dataset.unreadCount = nextCount;
             }
+
+            moveConversationItemToTop(item);
         }
 
         function clearConversationUnread(item)
