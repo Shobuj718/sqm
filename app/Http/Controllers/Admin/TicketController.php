@@ -219,6 +219,7 @@ class TicketController extends Controller
                     facebookMessageId: uniqid('agent_'),
                     senderFacebookId: auth()->id(),
                     message: $agentMessage,
+                    attachments: [],
                     messageType: 'agent',
                     channel: 'messenger'
                 );
@@ -254,8 +255,8 @@ class TicketController extends Controller
             }
 
             $lastMessage = $ticket->messages()
-                        ->latest()
-                        ->first();
+                            ->reorder('id', 'desc')
+                            ->first();
 
             return response()->json([
                 'status' => 'success',
@@ -271,6 +272,9 @@ class TicketController extends Controller
                     'message' => $lastMessage?->message,
                     'message_type' => $lastMessage?->message_type,
                     'created_at' => optional($lastMessage?->created_at)->toDateTimeString(),
+                    'facebook_page_name' => $ticket->facebookPage?->page_name,
+                    'customer_name' => $ticket->customer_name,
+                    'attachments' => $lastMessage?->attachments ?? [],
                 ]
             ]);
 

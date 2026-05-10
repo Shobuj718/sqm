@@ -244,7 +244,7 @@ class PagesController extends Controller
                         ($value['verb'] ?? null) === 'add'
                     ) {
                         $commentId = $value['comment_id'] ?? null;
-                        $message   = $value['message'] ?? '';
+                        $message = $event['message'] ?? [];
                         $fromId    = $value['from']['id'] ?? null;
 
                         if ($fromId == $pageId) {
@@ -280,7 +280,7 @@ class PagesController extends Controller
                     if (isset($event['message']) && !isset($event['message']['is_echo'])) {
 
                         $senderId = $event['sender']['id'];
-                        $message  = $event['message']['text'] ?? '';
+                        $message = $event['message'] ?? [];
 
                         Log::info('New Messenger Message', [
                             'page_id'  => $pageId,

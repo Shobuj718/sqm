@@ -133,12 +133,13 @@ class Ticket extends Model
     /**
      * Add a message to this ticket.
      */
-    public function addMessage(string $facebookMessageId, string $senderFacebookId, string $message, string $messageType = 'customer', string $channel = 'messenger'): SupportMessage
+    public function addMessage(string $facebookMessageId, string $senderFacebookId, string $message, string $messageType = 'customer', string $channel = 'messenger', array $attachments = []): SupportMessage
     {
         return $this->messages()->create([
             'facebook_message_id' => $facebookMessageId,
             'sender_facebook_id' => $senderFacebookId,
             'message' => $message,
+            'attachments' => $attachments,
             'message_type' => $messageType,
             'channel' => $channel,
         ]);

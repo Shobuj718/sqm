@@ -24,15 +24,15 @@ class HandleFacebookMessageJob implements ShouldQueue
     public string $pageId;
     public string $pageToken;
     public ?string $senderId;
-    public string $message;
+    public array $messageData = [];
     private bool $createdNewTicket = false;
 
-    public function __construct(string $pageId, string $pageToken, ?string $senderId, string $message)
+    public function __construct(string $pageId, string $pageToken, ?string $senderId, array $messageData)
     {
         $this->pageId = $pageId;
         $this->pageToken = $pageToken;
         $this->senderId = $senderId;
-        $this->message = $message;
+        $this->messageData = $messageData;
     }
 
     public function handle(): void
@@ -44,6 +44,9 @@ class HandleFacebookMessageJob implements ShouldQueue
             ]);
             return;
         }
+
+        $text = $this->messageData['text'] ?? '';
+        $attachments = $this->messageData['attachments'] ?? [];
 
         // Get or create ticket for this customer
         $ticket = $this->getOrCreateTicket();
@@ -67,13 +70,14 @@ class HandleFacebookMessageJob implements ShouldQueue
         $customerMessage = $ticket->addMessage(
             facebookMessageId: uniqid(),
             senderFacebookId: $this->senderId,
-            message: $this->message,
+            message: $text,
+            attachments: $attachments,
             messageType: 'customer',
             channel: 'messenger'
         );
 
         // Broadcast the new message event via Reverb for real-time updates
-        event(new NewTicketMessage($ticket, $customerMessage));
+        event(new NewTicketMessage($ticket, $customerMessage, $this->createdNewTicket));
 
         // Notify the assigned agent about the new message
         if ($ticket->assigned_to && $ticket->assignedAgent) {
@@ -82,14 +86,15 @@ class HandleFacebookMessageJob implements ShouldQueue
 
         // Only send and store automatic reply for a newly created ticket.
         if ($this->createdNewTicket) {
-            $reply = $this->checkDataset($this->message, $this->pageId)
-                ?? $this->generateHFReply($this->message);
+            $reply = $this->checkDataset($text, $this->pageId)
+                ?? $this->generateHFReply($text);
 
             // Save the automatic reply in the ticket history.
             $ticket->addMessage(
                 facebookMessageId: uniqid('auto_reply_'),
                 senderFacebookId: $this->pageId,
                 message: $reply,
+                attachments: [],
                 messageType: 'agent',
                 channel: 'messenger'
             );
@@ -122,6 +127,9 @@ class HandleFacebookMessageJob implements ShouldQueue
     private function getOrCreateTicket(): ?Ticket
     {
         try {
+
+            $text = $this->messageData['text'] ?? '';
+
             // Check if a ticket already exists for this customer on this page
             $ticket = Ticket::where('facebook_page_id', $this->pageId)
                 ->where('customer_facebook_id', $this->senderId)
@@ -142,7 +150,7 @@ class HandleFacebookMessageJob implements ShouldQueue
                 'customer_facebook_id' => $this->senderId,
                 'customer_name' => $this->getCustomerName(),
                 'subject' => 'Support Request - ' . now()->format('Y-m-d H:i'),
-                'initial_message' => $this->message,
+                'initial_message' => $text,
                 'channel' => 'messenger',
                 'status' => 'open',
                 'priority' => 'medium',

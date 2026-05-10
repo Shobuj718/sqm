@@ -12,6 +12,7 @@ class SupportMessage extends Model
         'facebook_message_id',
         'sender_facebook_id',
         'message',
+        'attachments',
         'message_type',
         'channel',
         'is_read',
@@ -23,6 +24,7 @@ class SupportMessage extends Model
         'updated_at' => 'datetime',
         'is_read' => 'boolean',
         'read_at' => 'datetime',
+        'attachments' => 'array',
     ];
 
     /**

@@ -206,7 +206,7 @@
 
                 @empty
 
-                    <div class="h-full flex items-center justify-center p-10">
+                    <div id="conversation-empty-state" class="h-full flex items-center justify-center p-10">
 
                         <div class="text-center">
 
@@ -280,41 +280,34 @@
         let currentTicketId = null;
         let messageIds = new Set();
         let ticketChannelSubscriptions = {};
+        let ticketNotificationIds = new Set();
+        const MESSAGE_GAP_THRESHOLD_MINUTES = 30;
 
         document.addEventListener('DOMContentLoaded', function () {
 
             bindConversationEvents();
             subscribeToAllTicketChannels();
+            subscribeToUserChannel();
 
         });
 
-        function bindConversationEvents()
+        function bindConversationEvent(item)
         {
-
-            const conversationItems =
-                document.querySelectorAll('.conversation-item');
-
-            conversationItems.forEach(item => {
-
-                item.addEventListener('click', function () {
-
-                    document.querySelectorAll('.conversation-item')
-                        .forEach(el => {
-
-                            el.classList.remove('selected');
-
-                        });
-
-                    this.classList.add('selected');
-
-                    const ticketId = this.dataset.id;
-
-                    loadConversation(ticketId);
-
+            item.addEventListener('click', function () {
+                document.querySelectorAll('.conversation-item').forEach(el => {
+                    el.classList.remove('selected');
                 });
 
+                this.classList.add('selected');
+                const ticketId = this.dataset.id;
+                loadConversation(ticketId);
             });
+        }
 
+        function bindConversationEvents()
+        {
+            const conversationItems = document.querySelectorAll('.conversation-item');
+            conversationItems.forEach(item => bindConversationEvent(item));
         }
 
         async function loadConversation(ticketId)
@@ -381,6 +374,23 @@
                 sendReply();
 
             });
+
+            // Handle Enter key to send message
+            const textarea = document.getElementById('agent_message');
+            if (textarea) {
+                textarea.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        sendReply();
+                    }
+                });
+
+                // Auto-resize textarea
+                textarea.addEventListener('input', function() {
+                    this.style.height = 'auto';
+                    this.style.height = Math.min(this.scrollHeight, 128) + 'px';
+                });
+            }
 
         }
 
@@ -483,8 +493,15 @@
                 if (data.status === 'success') {
 
                     textarea.value = '';
+                    textarea.style.height = 'auto';
 
                     appendMessage(data.chat_message);
+
+                    // Update sidebar conversation
+                    const ticketItem = document.querySelector(`.conversation-item[data-id="${currentTicketId}"]`);
+                    if (ticketItem) {
+                        updateSidebarConversation(ticketItem, data.chat_message);
+                    }
 
                 }
 
@@ -498,44 +515,96 @@
 
         function appendMessage(message)
         {
+            const container = document.getElementById('messages-container');
+            const messageId = message?.id ? String(message.id) : (message?.created_at ? `temp-${message.created_at}` : null);
 
-            const container =
-                document.getElementById('messages-container');
+            console.log('appendMessage called with:', { message, attachments: message?.attachments });
 
-            if (!container || !message || messageIds.has(message.id)) {
+            if (!container || !message || !messageId || messageIds.has(messageId)) {
                 return;
             }
 
-            messageIds.add(message.id);
+            const messagesWrapper = container.querySelector('.max-w-2xl') || container;
+            const lastMessageElement = messagesWrapper.querySelector('[data-message-id]:last-child');
+            const lastMessageType = lastMessageElement?.dataset.messageType;
+            const lastCreatedAt = lastMessageElement?.dataset.createdAt ? new Date(lastMessageElement.dataset.createdAt) : null;
+            const currentCreatedAt = new Date(message.created_at);
 
-            container.innerHTML += `
-                <div class="flex justify-end mb-6" data-message-id="${message.id}">
+            const showMeta = !lastMessageElement ||
+                lastMessageType !== message.message_type ||
+                (lastCreatedAt && ((currentCreatedAt - lastCreatedAt) / 60000) > MESSAGE_GAP_THRESHOLD_MINUTES);
+            const showTime = !lastMessageElement ||
+                !lastCreatedAt ||
+                ((currentCreatedAt - lastCreatedAt) / 60000) > 5;
 
-                    <div class="max-w-[75%] lg:max-w-[65%]">
+            messageIds.add(messageId);
 
-                        <div class="px-5 py-3.5 rounded-[22px] shadow-sm bg-[#1877f2] text-white rounded-br-md">
+            const isAgentMessage = message.message_type === 'agent' || message.sender_type === 'agent';
+            const pageName = message.facebook_page_name || 'Agent';
+            const customerName = message.customer_name || 'U';
+            const avatar = customerName.charAt(0).toUpperCase();
 
-                            <p class="text-sm leading-relaxed break-words">
+            let messageHTML = '';
 
-                                ${escapeHtml(message.message)}
-
-                            </p>
-
-                            <div class="text-xs mt-2 text-blue-100">
-
-                                ${formatTime(message.created_at)}
-
+            if (isAgentMessage) {
+                messageHTML = `
+                    <div class="flex justify-end" data-message-id="${message.id}" data-message-type="agent" data-created-at="${message.created_at}">
+                        <div class="flex flex-col gap-1 max-w-[70%]">
+                            ${showMeta ? `
+                                <div class="text-xs font-semibold mb-1.5 opacity-90 flex justify-end items-center gap-2 text-white">
+                                    <span class="rounded-full bg-white/10 px-2 py-1 text-white">
+                                        Replying as ${escapeHtml(pageName)}
+                                    </span>
+                                </div>
+                            ` : ''}
+                            <div class="px-4 py-2.5 rounded-2xl rounded-br-md bg-gradient-to-r from-[#1877f2] to-[#1b74e4] text-white shadow-sm">
+                                <p class="text-sm leading-relaxed break-words">
+                                    ${escapeHtml(message.message)}
+                                </p>
+                                ${renderAttachments(message.attachments)}
                             </div>
-
+                            ${showTime ? `
+                                <span class="text-xs text-gray-200 text-right px-2">
+                                    ${formatTime(message.created_at)}
+                                </span>
+                            ` : ''}
                         </div>
-
                     </div>
+                `;
+            } else {
+                messageHTML = `
+                    <div class="flex justify-start" data-message-id="${message.id}" data-message-type="customer" data-created-at="${message.created_at}">
+                        <div class="flex items-end gap-2 max-w-[70%]">
+                            ${showMeta ? `
+                                <div class="h-8 w-8 rounded-full bg-gradient-to-r from-[#1877f2] to-[#42a5f5] text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-sm">
+                                    ${escapeHtml(avatar)}
+                                </div>
+                            ` : '<div class="w-8"></div>'}
+                            <div class="flex flex-col gap-1">
+                                ${showMeta ? `
+                                    <div class="text-xs font-semibold text-gray-700 dark:text-gray-200">
+                                        ${escapeHtml(customerName)}
+                                    </div>
+                                ` : ''}
+                                <div class="px-4 py-2.5 rounded-2xl rounded-bl-md bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 shadow-sm border border-gray-200 dark:border-gray-600">
+                                    <p class="text-sm leading-relaxed break-words">
+                                        ${escapeHtml(message.message)}
+                                    </p>
+                                    ${renderAttachments(message.attachments)}
+                                </div>
+                                ${showTime ? `
+                                    <span class="text-xs text-gray-500 dark:text-gray-400 px-2">
+                                        ${formatTime(message.created_at)}
+                                    </span>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
 
-                </div>
-            `;
-
+            messagesWrapper.innerHTML += messageHTML;
             scrollMessagesToBottom();
-
         }
 
         function scrollMessagesToBottom()
@@ -557,15 +626,69 @@
 
         }
 
-        function escapeHtml(text)
+        function renderAttachments(attachments)
         {
+            if (!attachments) {
+                return '';
+            }
 
-            const div = document.createElement('div');
+            const attachmentArray = Array.isArray(attachments)
+                ? attachments
+                : (typeof attachments === 'object' ? Object.values(attachments) : []);
 
-            div.textContent = text;
+            if (attachmentArray.length === 0) {
+                return '';
+            }
 
-            return div.innerHTML;
+            let html = '';
+            attachmentArray.forEach(attachment => {
+                if (!attachment || !attachment.type) {
+                    return;
+                }
 
+                const url = escapeHtml(attachment.payload?.url ?? attachment.url ?? '');
+                if (!url) {
+                    return;
+                }
+
+                try {
+                    if (attachment.type === 'image') {
+                        html += `
+                            <img
+                                src="${url}"
+                                alt="Conversation image"
+                                class="max-w-full rounded-xl border border-gray-200 dark:border-gray-600 mt-2 shadow-sm"
+                                loading="lazy"
+                                onerror="this.style.display='none'"
+                            >
+                        `;
+                    } else if (attachment.type === 'video') {
+                        html += `
+                            <div class="mt-2 overflow-hidden rounded-xl border border-gray-200 dark:border-gray-600">
+                                <video controls class="w-full">
+                                    <source src="${url}" type="video/mp4">
+                                </video>
+                            </div>
+                        `;
+                    } else if (attachment.type === 'audio') {
+                        html += `
+                            <audio controls class="mt-2 w-full">
+                                <source src="${url}" type="audio/mpeg">
+                            </audio>
+                        `;
+                    } else if (attachment.type === 'file' && url.includes('.pdf')) {
+                        html += `
+                            <a href="${url}" target="_blank" class="text-blue-600 dark:text-blue-400 underline mt-2 block">
+                                Download PDF
+                            </a>
+                        `;
+                    }
+                } catch (e) {
+                    console.error('Error rendering attachment:', attachment, e);
+                }
+            });
+
+            return html ? `<div class="mt-2 grid gap-2">${html}</div>` : '';
         }
 
         function formatTime(dateString)
@@ -607,31 +730,71 @@
             });
         }
 
-        function handleTicketMessageEvent(event)
+        function subscribeToUserChannel()
         {
-            if (!event?.ticket_id || !event?.message) {
+            const userId = @json(auth()->id());
+            const isAdmin = @json(auth()->user()->hasRole('admin') || auth()->user()->hasRole('manager'));
+
+            if (!userId || !window.Echo) {
                 return;
             }
 
-            const ticketId = event.ticket_id;
-            const message = event.message;
+            window.Echo.private(`App.Models.User.${userId}`)
+                .listen('.NewTicketMessage', handleTicketMessageEvent)
+                .error((error) => console.error('User channel WebSocket error:', error));
+
+            if (isAdmin) {
+                window.Echo.private('tickets.new')
+                    .listen('.NewTicketMessage', handleTicketMessageEvent)
+                    .error((error) => console.error('Tickets new channel WebSocket error:', error));
+            }
+        }
+
+        function handleTicketMessageEvent(event)
+        {
+            console.log('Received WebSocket event:', event);
+            const payload = event?.data ? event.data : event;
+            const ticketId = payload?.ticket_id ?? payload?.ticketId ?? payload?.ticket?.id;
+            const message = payload?.message ?? payload?.data?.message;
+            const ticket = payload?.ticket ?? event?.ticket ?? payload?.data?.ticket;
+
+            if (!ticketId || !message) {
+                return;
+            }
+
+            const messageData = {
+                ...message,
+                sender_type: message.sender_type || message.message_type,
+                message_type: message.message_type || message.sender_type,
+                attachments: message.attachments ?? []
+            };
+
             const ticketItem = document.querySelector(`.conversation-item[data-id="${ticketId}"]`);
 
-            if (ticketItem) {
-                updateSidebarConversation(ticketItem, message);
+            if (!ticketItem && ticket) {
+                appendConversationItem(ticket);
             }
 
-            if (message.sender_type !== 'agent') {
-                showTicketNotification(
-                    `New message from ${ticketItem ? ticketItem.querySelector('h3')?.textContent.trim() : 'customer'}`,
-                    message.message
-                );
+            const currentTicketItem = document.querySelector(`.conversation-item[data-id="${ticketId}"]`);
+            if (currentTicketItem) {
+                updateSidebarConversation(currentTicketItem, messageData);
             }
 
+            if (messageData.sender_type !== 'agent') {
+                if (!messageData.id || !ticketNotificationIds.has(messageData.id)) {
+                    showTicketNotification(
+                        `New message from ${currentTicketItem ? currentTicketItem.querySelector('h3')?.textContent.trim() : 'customer'}`,
+                        messageData.message
+                    );
+                    if (messageData.id) {
+                        ticketNotificationIds.add(messageData.id);
+                    }
+                }
+            }
 
             if (String(ticketId) === String(currentTicketId)) {
-                appendMessage(message);
-                clearConversationUnread(ticketItem);
+                appendMessage(messageData);
+                clearConversationUnread(currentTicketItem);
             }
         }
 
@@ -676,6 +839,68 @@
                 }
             }
             return badge;
+        }
+
+        function renderConversationItem(ticket)
+        {
+            const unreadCount = ticket.unread_count ?? 1;
+            const time = ticket.updated_at ? formatTime(ticket.updated_at) : '';
+            const title = ticket.customer_name || ticket.customer_facebook_id || 'Unknown';
+            const snippet = ticket.subject || 'New ticket';
+            const pageName = ticket.facebook_page_name ? `<span class="text-[10px] font-medium text-[#1877f2]">${escapeHtml(ticket.facebook_page_name)}</span>` : '';
+
+            return `
+                <div class="conversation-item mx-2 mt-1 px-3 py-2 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent bg-blue-50 dark:bg-blue-900/20"
+                    data-id="${ticket.id}"
+                    data-unread-count="${unreadCount}">
+                    <div class="flex items-start gap-2">
+                        <div class="relative shrink-0">
+                            <div class="h-10 w-10 rounded-full bg-gradient-to-r from-[#1877f2] to-[#42a5f5] text-white flex items-center justify-center font-bold text-base shadow-sm">
+                                ${escapeHtml((ticket.customer_name || ticket.customer_facebook_id || 'U').charAt(0).toUpperCase())}
+                            </div>
+                            <div class="absolute -bottom-1 -right-1 h-3 w-3 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 flex items-center justify-center text-[8px] shadow-sm">
+                                💬
+                            </div>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center justify-between gap-2 mb-0.5">
+                                <h3 class="font-semibold text-gray-900 dark:text-gray-100 truncate text-sm">${escapeHtml(title)}</h3>
+                                <div class="flex items-center gap-2 shrink-0">
+                                    <span class="conversation-time text-[10px] text-gray-400 dark:text-gray-500 whitespace-nowrap">${time}</span>
+                                    ${unreadCount > 0 ? `<span class="conversation-unread-badge inline-flex items-center justify-center h-5 min-w-[1.25rem] rounded-full bg-blue-600 text-white text-[10px] font-semibold">${unreadCount > 99 ? '99+' : unreadCount}</span>` : ''}
+                                </div>
+                            </div>
+                            <p class="conversation-snippet text-xs text-gray-500 dark:text-gray-400 truncate leading-relaxed mb-1">${escapeHtml(snippet)}</p>
+                            <div class="flex items-center gap-1">${pageName}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function appendConversationItem(ticket)
+        {
+            const existingItem = document.querySelector(`.conversation-item[data-id="${ticket.id}"]`);
+            if (existingItem) {
+                return;
+            }
+
+            const container = document.querySelector('.flex-1.overflow-y-auto.py-2');
+            if (!container) {
+                return;
+            }
+
+            const emptyState = document.getElementById('conversation-empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+
+            container.insertAdjacentHTML('afterbegin', renderConversationItem(ticket));
+            const newItem = document.querySelector(`.conversation-item[data-id="${ticket.id}"]`);
+            if (newItem) {
+                bindConversationEvent(newItem);
+                subscribeToTicketChannel(ticket.id);
+            }
         }
 
         function updateSidebarConversation(item, message)

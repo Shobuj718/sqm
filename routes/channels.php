@@ -7,6 +7,9 @@ Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
 });
 
 Broadcast::channel('ticket.{id}', function ($user, $id) {
-    return true;
     return $user !== null;
+});
+
+Broadcast::channel('tickets.new', function ($user) {
+    return $user->hasRole('admin') || $user->hasRole('manager');
 });
