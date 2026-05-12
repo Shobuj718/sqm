@@ -31,7 +31,7 @@ class SupportQueueController extends Controller
 
         SupportQueue::create($validated);
 
-        return redirect()->route('admin.support-queues.index')->with('success', 'Support queue created successfully.');
+        return redirect()->route('support-queues.index')->with('success', 'Support queue created successfully.');
     }
 
     public function edit(SupportQueue $supportQueue)
@@ -70,7 +70,7 @@ class SupportQueueController extends Controller
 
         $supportQueue->update($validated);
 
-        return redirect()->route('admin.support-queues.show', $supportQueue)->with('success', 'Support queue updated successfully.');
+        return redirect()->route('support-queues.show', $supportQueue)->with('success', 'Support queue updated successfully.');
     }
 
     public function assignAgents(Request $request, SupportQueue $supportQueue): RedirectResponse

@@ -1,100 +1,114 @@
 <div class="flex-1 flex flex-col h-full bg-gray-50 dark:bg-gray-900 relative">
 
     {{-- CHAT HEADER --}}
-    <div class="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-4 py-3 shadow-sm">
-        <div class="flex items-center justify-between gap-3">
-            <div class="flex items-center gap-3">
-
-                {{-- PROFILE --}}
+    <div class="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-4 py-4 shadow-sm">
+        <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div class="flex items-start gap-4">
                 <div class="relative shrink-0">
-
-                    <div class="h-10 w-10 rounded-full bg-gradient-to-r from-[#1877f2] to-[#42a5f5] text-white flex items-center justify-center font-bold text-sm shadow-sm">
-
-                        {{ strtoupper(substr($ticket->customer_name ?? 'U',0,1)) }}
-
+                    <div class="h-12 w-12 rounded-3xl bg-gradient-to-r from-[#1877f2] to-[#42a5f5] text-white flex items-center justify-center font-bold text-lg shadow-sm">
+                        @if($ticket->channel === 'messenger')
+                            <i class="fab fa-facebook-messenger fa-lg"></i>
+                        @elseif($ticket->channel === 'comment')
+                            <i class="fab fa-facebook fa-lg"></i>
+                        @else
+                            {{ strtoupper(substr($ticket->customer_name ?? 'U',0,1)) }}
+                        @endif
                     </div>
-
-                    {{-- ONLINE --}}
-                    <div class="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-500 border-2 border-white shadow-sm"></div>
-
+                    <div class="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full bg-green-500 border-2 border-white shadow-sm"></div>
                 </div>
 
-                {{-- INFO --}}
-                <div>
-
-                    <div class="flex items-center gap-2">
-
-                        <div>
-                            <h3 class="font-bold text-gray-900 dark:text-gray-100 text-sm leading-tight">
-
-                                {{ $ticket->customer_name ?? $ticket->customer_facebook_id }}
-
-                            </h3>
-
-                            @if($ticket->facebookPage)
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                    <a href="https://www.facebook.com/{{ $ticket->facebookPage->page_id }}" target="_blank" class="hover:text-blue-500 transition">
-                                        📘 {{ $ticket->facebookPage->page_name }}
-                                    </a>
-                                </p>
-                            @endif
-
+                <div class="space-y-2">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:gap-3 gap-1">
+                        <h3 class="font-semibold text-gray-900 dark:text-gray-100 text-base sm:text-lg truncate">
                             @if($ticket->customer_facebook_id)
-                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                    <a href="https://www.facebook.com/profile.php?id={{ $ticket->customer_facebook_id }}" target="_blank" rel="noopener noreferrer" class="hover:text-blue-500 transition">
-                                        🔗 View customer profile
-                                    </a>
-                                </p>
+                                <a href="https://www.facebook.com/profile.php?id={{ $ticket->customer_facebook_id }}" target="_blank" rel="noopener noreferrer" class="hover:text-blue-600 dark:hover:text-blue-300 transition">
+                                    {{ $ticket->customer_name ?? $ticket->customer_facebook_id }}
+                                </a>
+                            @else
+                                {{ $ticket->customer_name ?? $ticket->customer_facebook_id }}
                             @endif
-                        </div>
-
-                        <span class="px-2 py-1 rounded-full bg-[#e7f3ff] dark:bg-blue-900/30 text-[#1877f2] dark:text-blue-300 text-[10px] font-semibold ml-2">
-
-                            Messenger
-
-                        </span>
-
+                        </h3>
                     </div>
 
-                </div>
+                    <div class="flex flex-wrap items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                        @if($ticket->facebookPage)
+                            <a href="https://www.facebook.com/{{ $ticket->facebookPage->page_id }}" target="_blank" class="hover:text-blue-600 dark:hover:text-blue-300 transition">
+                                {{ $ticket->facebookPage->page_name }}
+                            </a>
+                        @endif
 
+                        @if($ticket->channel === 'comment' && $ticket->facebook_post_id)
+                            <span class="font-semibold">•</span>
+                            <a href="https://www.facebook.com/{{ $ticket->facebook_post_id }}" target="_blank" rel="noopener noreferrer" class="hover:text-blue-600 dark:hover:text-blue-300 transition">
+                                View post
+                            </a>
+                        @endif
+                    </div>
+                </div>
             </div>
 
-            {{-- CONTROLS --}}
-            <div class="flex items-center gap-2">
-                <select id="ticket-status" class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-1.5 text-xs text-gray-700 dark:text-gray-200 outline-none focus:border-[#1877f2] dark:focus:border-blue-400 transition">
-                    <option value="open" {{ $ticket->status === 'open' ? 'selected' : '' }}>Open</option>
-                    <option value="in_progress" {{ $ticket->status === 'in_progress' ? 'selected' : '' }}>In Progress</option>
-                    <option value="resolved" {{ $ticket->status === 'resolved' ? 'selected' : '' }}>Resolved</option>
-                    <option value="closed" {{ $ticket->status === 'closed' ? 'selected' : '' }}>Closed</option>
-                </select>
-
-                <select id="ticket-priority" class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-1.5 text-xs text-gray-700 dark:text-gray-200 outline-none focus:border-[#1877f2] dark:focus:border-blue-400 transition">
-                    <option value="low" {{ $ticket->priority === 'low' ? 'selected' : '' }}>Low</option>
-                    <option value="medium" {{ $ticket->priority === 'medium' ? 'selected' : '' }}>Medium</option>
-                    <option value="high" {{ $ticket->priority === 'high' ? 'selected' : '' }}>High</option>
-                    <option value="urgent" {{ $ticket->priority === 'urgent' ? 'selected' : '' }}>Urgent</option>
-                </select>
-
-                <select id="ticket-agent" class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 py-1.5 text-xs text-gray-700 dark:text-gray-200 outline-none focus:border-[#1877f2] dark:focus:border-blue-400 transition">
-                    <option value="">Unassigned</option>
-                    @foreach($agents as $agent)
-                        <option value="{{ $agent->id }}" {{ $ticket->assigned_to === $agent->id ? 'selected' : '' }}>
-                            {{ $agent->name }}
-                        </option>
-                    @endforeach
-                </select>
-
+            <div class="grid gap-2 sm:w-[320px]">
                 <button
-                    id="toggle-unread-btn"
+                    id="show-files-btn"
                     type="button"
-                    class="rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition"
+                    class="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm font-semibold text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                    onclick="showFilesModal()"
                 >
-                    Mark unread
+                    📎 Attachments
                 </button>
+
+                <div class="grid gap-2 sm:grid-cols-3">
+                    <select id="ticket-status" class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-500 transition">
+                        <option value="open" {{ $ticket->status === 'open' ? 'selected' : '' }}>Open</option>
+                        <option value="waiting" {{ $ticket->status === 'waiting' ? 'selected' : '' }}>Waiting</option>
+                        <option value="solved" {{ $ticket->status === 'solved' ? 'selected' : '' }}>Solved</option>
+                        <option value="closed" {{ $ticket->status === 'closed' ? 'selected' : '' }}>Closed</option>
+                    </select>
+
+                    <select id="ticket-priority" class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-500 transition">
+                        <option value="low" {{ $ticket->priority === 'low' ? 'selected' : '' }}>Low</option>
+                        <option value="medium" {{ $ticket->priority === 'medium' ? 'selected' : '' }}>Medium</option>
+                        <option value="high" {{ $ticket->priority === 'high' ? 'selected' : '' }}>High</option>
+                        <option value="urgent" {{ $ticket->priority === 'urgent' ? 'selected' : '' }}>Urgent</option>
+                    </select>
+
+                    <select id="ticket-agent" class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-500 transition">
+                        <option value="">Unassigned</option>
+                        @foreach($agents as $agent)
+                            <option value="{{ $agent->id }}" {{ $ticket->assigned_to === $agent->id ? 'selected' : '' }}>
+                                {{ $agent->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                </div>
             </div>
         </div>
     </div>
+
+    @php
+        $messages = $ticket->messages()->orderBy('created_at','asc')->get();
+        $fileAttachments = [];
+        foreach ($messages as $message) {
+            if (empty($message->attachments) || !is_array($message->attachments)) {
+                continue;
+            }
+            foreach ($message->attachments as $attachment) {
+                $url = $attachment['payload']['url'] ?? $attachment['url'] ?? null;
+                if (!$url) {
+                    continue;
+                }
+                $type = $attachment['type'] ?? 'file';
+                $filename = basename(parse_url($url, PHP_URL_PATH) ?: $url);
+                $fileAttachments[] = [
+                    'url' => $url,
+                    'type' => $type,
+                    'filename' => $filename,
+                    'sender' => $message->message_type === 'agent' ? 'Agent' : ($message->message_type === 'customer' ? ($ticket->customer_name ?: 'Customer') : ucfirst($message->message_type)),
+                    'created_at' => $message->created_at,
+                ];
+            }
+        }
+    @endphp
 
     {{-- MESSAGE AREA --}}
     <div
@@ -142,7 +156,7 @@
                                 @if($message->attachments)
                                     @foreach($message->attachments as $attachment)
                                         @if($attachment['type'] === 'image')
-                                            <img src="{{ $attachment['payload']['url'] }}" alt="Image" class="max-w-full rounded mt-2">
+                                            <img src="{{ $attachment['payload']['url'] }}" alt="Image" class="max-w-full rounded mt-2 cursor-pointer shadow-sm hover:opacity-90" style="max-height:240px;" onclick="showImagePreview('{{ $attachment['payload']['url'] }}')">
                                         @elseif($attachment['type'] === 'video')
                                             <video controls class="max-w-full rounded mt-2">
                                                 <source src="{{ $attachment['payload']['url'] }}" type="video/mp4">
@@ -187,7 +201,7 @@
                                     @if($message->attachments)
                                         @foreach($message->attachments as $attachment)
                                             @if($attachment['type'] === 'image')
-                                                <img src="{{ $attachment['payload']['url'] }}" alt="Image" class="max-w-full rounded mt-2">
+                                                <img src="{{ $attachment['payload']['url'] }}" alt="Image" class="max-w-full rounded mt-2 cursor-pointer shadow-sm hover:opacity-90" style="max-height:240px;" onclick="showImagePreview('{{ $attachment['payload']['url'] }}')">
                                             @elseif($attachment['type'] === 'video')
                                                 <video controls class="max-w-full rounded mt-2">
                                                     <source src="{{ $attachment['payload']['url'] }}" type="video/mp4">
@@ -270,45 +284,96 @@
                 </div>
 
                 {{-- INPUT --}}
-                <div class="flex-1 relative">
+                <div class="flex-1 flex flex-col">
 
                     <div class="mb-2 text-xs text-gray-500 dark:text-gray-400">
                         Replying as <span class="font-semibold text-gray-900 dark:text-gray-100">{{ $ticket->facebookPage?->page_name ?? 'Messenger' }}</span>
                     </div>
 
-                    <textarea
-                        id="agent_message"
-                        rows="1"
-                        placeholder="Write a message... (Press Enter to send)"
-                        class="w-full resize-none bg-gray-100 dark:bg-gray-700 border border-transparent focus:border-[#1877f2] dark:focus:border-blue-400 px-4 py-2.5 rounded-2xl text-sm outline-none leading-relaxed max-h-32 overflow-y-auto text-gray-800 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 transition"
-                    ></textarea>
+                    <div class="flex items-end gap-3">
+                        <textarea
+                            id="agent_message"
+                            rows="1"
+                            placeholder="Write a message... (Press Enter to send)"
+                            class="flex-1 resize-none bg-gray-100 dark:bg-gray-700 border border-transparent focus:border-[#1877f2] dark:focus:border-blue-400 px-4 py-2.5 rounded-2xl text-sm outline-none leading-relaxed max-h-32 overflow-y-auto text-gray-800 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 transition"
+                        ></textarea>
+
+                        <button
+                            type="submit"
+                            class="h-10 w-10 rounded-full bg-gradient-to-r from-[#1877f2] to-[#1b74e4] text-white flex items-center justify-center hover:scale-110 active:scale-95 transition shadow-md"
+                            title="Send message"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                 class="h-4 w-4 rotate-45"
+                                 fill="currentColor"
+                                 viewBox="0 0 20 20">
+
+                                <path d="M2.94 2.94a1.5 1.5 0 011.64-.33l12 5a1.5 1.5 0 010 2.78l-12 5a1.5 1.5 0 01-2.1-1.73l1.42-4.26a.5.5 0 000-.32L2.48 4.67a1.5 1.5 0 01.46-1.73z"/>
+
+                            </svg>
+                        </button>
+                    </div>
 
                     <div id="attachment-preview" class="mt-2 text-xs text-gray-500 dark:text-gray-400"></div>
-
-                    {{-- SEND --}}
-                    <button
-                        type="submit"
-                        class="absolute right-3 bottom-2.5 h-8 w-8 rounded-full bg-gradient-to-r from-[#1877f2] to-[#1b74e4] text-white flex items-center justify-center hover:scale-110 active:scale-95 transition shadow-md"
-                        title="Send message"
-                    >
-
-                        <svg xmlns="http://www.w3.org/2000/svg"
-                             class="h-4 w-4 rotate-45"
-                             fill="currentColor"
-                             viewBox="0 0 20 20">
-
-                            <path d="M2.94 2.94a1.5 1.5 0 011.64-.33l12 5a1.5 1.5 0 010 2.78l-12 5a1.5 1.5 0 01-2.1-1.73l1.42-4.26a.5.5 0 000-.32L2.48 4.67a1.5 1.5 0 01.46-1.73z"/>
-
-                        </svg>
-
-                    </button>
-
                 </div>
 
             </form>
 
         </div>
 
+    </div>
+
+    {{-- FILES MODAL --}}
+    <div id="files-modal" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+            <div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Conversation Files</h3>
+                <button type="button" onclick="closeFilesModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-4 overflow-y-auto max-h-[60vh]">
+                @if(count($fileAttachments) > 0)
+                    <div class="space-y-4">
+                        @foreach($fileAttachments as $file)
+                            <div class="rounded-2xl border border-gray-200 bg-white px-4 py-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                    <div class="flex items-center gap-3">
+                                        @if($file['type'] === 'image')
+                                            <button type="button" onclick="showImagePreview('{{ $file['url'] }}')" class="h-16 w-16 overflow-hidden rounded-2xl border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-900 shadow-sm">
+                                                <img src="{{ $file['url'] }}" alt="Image preview" class="h-full w-full object-cover">
+                                            </button>
+                                        @else
+                                            <div class="flex h-16 w-16 items-center justify-center rounded-2xl border border-gray-200 bg-gray-100 text-sm font-semibold text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                                                {{ strtoupper(substr($file['type'], 0, 3)) }}
+                                            </div>
+                                        @endif
+                                        <div class="min-w-0">
+                                            <div class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{{ $file['filename'] }}</div>
+                                            <div class="text-xs text-gray-500 dark:text-gray-400">{{ $file['sender'] }} · {{ $file['created_at']->format('h:i A') }}</div>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        @if($file['type'] === 'image')
+                                            <button type="button" onclick="showImagePreview('{{ $file['url'] }}')" class="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 transition">Preview</button>
+                                        @else
+                                            <a href="{{ $file['url'] }}" target="_blank" class="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 transition">Open file</a>
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                @else
+                    <div class="text-center py-8">
+                        <div class="text-gray-400 text-4xl mb-4">📎</div>
+                        <p class="text-gray-500 dark:text-gray-400">No files attached to this conversation yet.</p>
+                    </div>
+                @endif
+            </div>
+        </div>
     </div>
 
 </div>

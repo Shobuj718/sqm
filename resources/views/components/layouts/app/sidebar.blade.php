@@ -19,8 +19,6 @@
                                         :active="request()->routeIs('admin.roles*')">Roles</x-layouts.sidebar-two-level-link>
                                     <x-layouts.sidebar-two-level-link href="{{ route('admin.permissions') }}" icon='fas-key'
                                         :active="request()->routeIs('admin.permissions*')">Permissions</x-layouts.sidebar-two-level-link>
-                                    <x-layouts.sidebar-two-level-link href="{{ route('admin.support-queues.index') }}" icon='fas-tasks'
-                                        :active="request()->routeIs('admin.support-queues*')">Support Queues</x-layouts.sidebar-two-level-link>
                                 </x-layouts.sidebar-two-level-link-parent>
                             @endif
 
@@ -29,11 +27,26 @@
                                     :active="request()->routeIs('pages*')">Pages</x-layouts.sidebar-link>
                             @endif
 
+                            @if(auth()->check() && auth()->user()->hasPermission('pages-queue'))
+                                <x-layouts.sidebar-link href="{{ route('support-queues.index') }}" icon='fas-tasks'
+                                    :active="request()->routeIs('support-queues*')">Pages Queue</x-layouts.sidebar-link>
+                            @endif
+
+                            @if(auth()->check() && auth()->user()->hasPermission('support-ticket'))
+                                 <x-layouts.sidebar-link href="{{ route('all-tickets') }}" icon='fas-ticket-alt'
+                                    :active="request()->routeIs('all-tickets')">Tickets</x-layouts.sidebar-link>
+                            @endif
+
+
+
                             @if(auth()->check() &&  auth()->user()->hasPermission('support-ticket'))
-                                <x-layouts.sidebar-link href="{{ route('tickets.index') }}" icon='fas-ticket-alt'
+                                <x-layouts.sidebar-link
+                                    href="{{ route('tickets.index') }}"
+                                    icon='fas-comments'
                                     :active="request()->routeIs('tickets*')">
+
                                     <span class="flex items-center">
-                                        Tickets
+                                        Conversations
                                     </span>
                                 </x-layouts.sidebar-link>
                             @endif

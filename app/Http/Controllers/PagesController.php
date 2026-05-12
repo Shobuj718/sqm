@@ -244,17 +244,19 @@ class PagesController extends Controller
                         ($value['verb'] ?? null) === 'add'
                     ) {
                         $commentId = $value['comment_id'] ?? null;
-                        $message = $event['message'] ?? [];
-                        $fromId    = $value['from']['id'] ?? null;
+                        $message = (string) ($value['message'] ?? '');
+                        $fromId = $value['from']['id'] ?? null;
+                        $postId = $value['post_id'] ?? null;
 
                         if ($fromId == $pageId) {
                             continue;
                         }
 
                         Log::info('New Comment', [
-                            'page_id'   => $pageId,
-                            'comment_id'=> $commentId,
-                            'message'   => $message
+                            'page_id' => $pageId,
+                            'comment_id' => $commentId,
+                            'post_id' => $postId,
+                            'message' => $message,
                         ]);
 
                         HandleFacebookCommentJob::dispatch(
@@ -262,7 +264,8 @@ class PagesController extends Controller
                             $pageToken,
                             $commentId,
                             $message,
-                            $fromId
+                            $fromId,
+                            $postId
                         );
                     }
                 }

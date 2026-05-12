@@ -21,7 +21,7 @@
                                     <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">Customer:   <a href="https://www.facebook.com/profile.php?id={{ $ticket->customer_facebook_id }}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">{{ $ticket->customer_name ?? $ticket->customer_facebook_id  }}</a></p>
                                 </div>
                                 <div class="flex gap-2">
-                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium {{ $ticket->status === 'open' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' : ($ticket->status === 'in_progress' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : ($ticket->status === 'resolved' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200')) }}">
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium {{ $ticket->status === 'open' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' : ($ticket->status === 'waiting' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : ($ticket->status === 'solved' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200')) }}">
                                         {{ ucfirst(str_replace('_', ' ', $ticket->status)) }}
                                     </span>
                                     <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium {{ $ticket->priority === 'urgent' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' : ($ticket->priority === 'high' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' : ($ticket->priority === 'medium' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200')) }}">
@@ -203,8 +203,8 @@
                                     class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-gray-200"
                                 >
                                     <option value="open" {{ $ticket->status === 'open' ? 'selected' : '' }}>Open</option>
-                                    <option value="in_progress" {{ $ticket->status === 'in_progress' ? 'selected' : '' }}>In Progress</option>
-                                    <option value="resolved" {{ $ticket->status === 'resolved' ? 'selected' : '' }}>Resolved</option>
+                                    <option value="waiting" {{ $ticket->status === 'waiting' ? 'selected' : '' }}>Waiting</option>
+                                    <option value="solved" {{ $ticket->status === 'solved' ? 'selected' : '' }}>Solved</option>
                                     <option value="closed" {{ $ticket->status === 'closed' ? 'selected' : '' }}>Closed</option>
                                 </select>
                                 <button type="submit" class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium text-sm">Update Status</button>
@@ -241,10 +241,10 @@
                             <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Actions</h3>
                         </div>
                         <div class="px-6 py-4 space-y-2">
-                            @if($ticket->status !== 'resolved')
+                            @if($ticket->status !== 'solved')
                             <form method="POST" action="{{ route('tickets.resolve', $ticket) }}">
                                 @csrf
-                                <button type="submit" class="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium text-sm">Mark as Resolved</button>
+                                <button type="submit" class="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium text-sm">Mark as Solved</button>
                             </form>
                             @endif
 

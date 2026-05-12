@@ -43,6 +43,10 @@
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
         }
 
+        .conversation-item:hover .conversation-menu-btn {
+            opacity: 1 !important;
+        }
+
         .conversation-item.selected {
             background-color: #e3f2fd;
             border-color: #93c5fd;
@@ -102,37 +106,20 @@
     <div class="h-[calc(100vh-64px)] flex bg-gray-50 dark:bg-gray-900 overflow-hidden">
 
         {{-- LEFT SIDEBAR --}}
-        <div class="w-[380px] bg-white dark:bg-gray-800 border-r border-gray-100 dark:border-gray-700 flex flex-col shrink-0">
+        <div class="w-[320px] bg-white dark:bg-gray-800 border-r border-gray-100 dark:border-gray-700 flex flex-col shrink-0">
 
             {{-- HEADER --}}
-            <div class="p-4 border-b border-gray-100 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800 z-20">
-
-                <div class="mb-4">
-
-                    <div>
-
-                        <h2 class="text-[24px] font-bold text-gray-800 dark:text-gray-100 leading-tight">
-                            Inbox
-                        </h2>
-
-                        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                            Respond to messages, set up automations and more.
-                        </p>
-
-                    </div>
-
+            <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800 z-20">
+                <div class="flex items-center justify-between gap-3">
+                    <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                        Inbox
+                    </h2>
+                    <button type="button" class="inline-flex items-center justify-center h-9 w-9 rounded-full border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white transition-colors" title="Refresh inbox">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M4.93 4.93a10 10 0 0114.14 0 10 10 0 010 14.14M12 2v4m0 12v4m10-10h-4M6 12H2" />
+                        </svg>
+                    </button>
                 </div>
-
-                {{-- FILTERS --}}
-                <div class="mb-4">
-                    <div class="flex flex-wrap gap-2 text-xs">
-                        <span class="sidebar-filter-chip">Unread</span>
-                        <span class="sidebar-filter-chip">Priority</span>
-                        <span class="sidebar-filter-chip">Ad replies</span>
-                        <span class="sidebar-filter-chip">Follow up</span>
-                    </div>
-                </div>
-
             </div>
 
             {{-- CONVERSATION LIST --}}
@@ -145,6 +132,20 @@
                         $unreadCount = $ticket->unread_messages_count ?? 0;
                         $isUnread = $unreadCount > 0;
                         $isSelected = false; // We'll handle this with JS
+                        $imagePreview = null;
+                        if ($lastMessage?->attachments) {
+                            foreach ($lastMessage->attachments as $attachment) {
+                                if (($attachment['type'] ?? '') === 'image') {
+                                    $imagePreview = $attachment['payload']['url'] ?? $attachment['url'] ?? null;
+                                    break;
+                                }
+                            }
+                        }
+
+                        $conversationSnippet = $ticket->channel === 'comment'
+                            ? ($ticket->initial_message ?? $ticket->subject ?? $lastMessage?->message)
+                            : ($lastMessage?->message ?? $ticket->subject);
+                        $postLink = $ticket->channel === 'comment' ? $ticket->facebook_post_id : null;
                     @endphp
 
                     <div
@@ -158,14 +159,17 @@
                             {{-- PROFILE --}}
                             <div class="relative shrink-0">
                                 <div class="h-10 w-10 rounded-full bg-gradient-to-r from-[#1877f2] to-[#42a5f5] text-white flex items-center justify-center font-bold text-base shadow-sm">
-                                    {{ strtoupper(substr($ticket->customer_name ?? 'U',0,1)) }}
+                                    @if($ticket->channel === 'messenger')
+                                        <i class="fab fa-facebook-messenger fa-lg text-white"></i>
+                                    @elseif($ticket->channel === 'comment')
+                                        <i class="fab fa-facebook fa-lg text-white"></i>
+                                    @else
+                                        {{ strtoupper(substr($ticket->customer_name ?? 'U',0,1)) }}
+                                    @endif
                                 </div>
                                 @if($isUnread)
                                     <div class="unread-indicator"></div>
                                 @endif
-                                <div class="absolute -bottom-1 -right-1 h-3 w-3 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 flex items-center justify-center text-[8px] shadow-sm">
-                                    💬
-                                </div>
                             </div>
 
                             {{-- CONTENT --}}
@@ -184,12 +188,32 @@
                                                 {{ $unreadCount > 99 ? '99+' : $unreadCount }}
                                             </span>
                                         @endif
+                                        <button type="button" onclick="event.stopPropagation(); toggleConversationMenu(event, {{ $ticket->id }})" class="conversation-menu-btn opacity-0 group-hover:opacity-100 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full p-1 transition-opacity">
+                                            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path>
+                                            </svg>
+                                        </button>
                                     </div>
                                 </div>
 
                                 <p class="conversation-snippet text-xs {{ $isUnread ? 'text-gray-900 dark:text-gray-100 font-medium' : 'text-gray-500 dark:text-gray-400' }} truncate leading-relaxed mb-1">
-                                    {{ $lastMessage?->message ?? $ticket->subject }}
+                                    {{ \Illuminate\Support\Str::limit($conversationSnippet, 80) }}
                                 </p>
+
+                                @if($postLink)
+                                    <p class="text-[10px] text-blue-600 dark:text-blue-300 truncate leading-relaxed mb-1">
+                                        <a href="https://www.facebook.com/{{ $postLink }}" target="_blank" rel="noopener noreferrer">View post</a>
+                                    </p>
+                                @endif
+
+                                @if($imagePreview)
+                                    <div class="mt-2">
+                                        <button type="button" onclick="event.stopPropagation(); showImagePreview(@json($imagePreview))" class="group inline-flex items-center gap-2 rounded-2xl border border-gray-200 bg-white px-2 py-1 shadow-sm hover:border-blue-300 dark:border-gray-700 dark:bg-gray-900 transition">
+                                            <img src="{{ $imagePreview }}" alt="Image preview" class="h-12 w-12 rounded-xl object-cover" loading="lazy">
+                                            <span class="text-[10px] text-gray-500 dark:text-gray-400 group-hover:text-blue-600">View image</span>
+                                        </button>
+                                    </div>
+                                @endif
 
                                 <div class="flex items-center gap-1">
                                     <span class="text-[10px] font-medium text-[#1877f2]">
@@ -202,6 +226,24 @@
 
                         </div>
 
+                    </div>
+
+                    {{-- CONVERSATION MENU --}}
+                    <div id="conversation-menu-{{ $ticket->id }}" class="conversation-menu hidden absolute right-2 top-8 z-50 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1">
+                        <button type="button" onclick="toggleConversationReadStatus({{ $ticket->id }}, {{ $isUnread ? 'true' : 'false' }})" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2">
+                            @if($isUnread)
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 10l6 6 6-6"></path>
+                                </svg>
+                                Mark as read
+                            @else
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                                </svg>
+                                Mark as unread
+                            @endif
+                        </button>
                     </div>
 
                 @empty
@@ -234,9 +276,22 @@
 
         {{-- CHAT AREA --}}
         <div
-            class="flex-1 flex flex-col bg-[#f7f8fa]"
-            id="chat-area"
+            class="flex-1 flex bg-[#f7f8fa] relative"
+            id="main-content"
         >
+
+            <button id="open-context-panel-button" onclick="toggleContextPanel()" class="hidden absolute right-4 top-4 z-20 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+                Details
+            </button>
+
+            {{-- CHAT CONTAINER --}}
+            <div
+                class="flex-1 flex flex-col"
+                id="chat-area"
+            >
 
             {{-- EMPTY STATE --}}
             <div class="h-full flex items-center justify-center">
@@ -265,6 +320,111 @@
 
         </div>
 
+        {{-- CONTEXT PANEL --}}
+        <div class="w-80 bg-white dark:bg-gray-900 border-l border-gray-100 dark:border-gray-700 flex flex-col shrink-0 transition-all duration-300 ease-in-out" id="context-panel">
+
+            {{-- CONTEXT HEADER --}}
+            <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-900 z-20">
+                <div class="flex items-center justify-between gap-3">
+                    <h3 class="text-base font-semibold text-gray-900 dark:text-gray-100">Conversation details</h3>
+                    <button type="button" onclick="toggleContextPanel()" class="inline-flex items-center justify-center h-9 w-9 rounded-full border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white transition-colors" title="Toggle panel">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            {{-- CONTEXT CONTENT --}}
+            <div class="flex-1 overflow-y-auto p-4 space-y-4" id="context-content">
+
+                {{-- SUMMARY CARD --}}
+                <div class="rounded-3xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 p-4 shadow-sm">
+                    <div class="flex items-center justify-between gap-3 mb-3">
+                        <div class="flex items-center gap-2 text-gray-800 dark:text-gray-100">
+                            <span class="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16h6m2 4H7a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v12a2 2 0 01-2 2z" />
+                                </svg>
+                            </span>
+                            <div>
+                                <h4 class="text-sm font-semibold">Summary</h4>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">Click Edit to update the summary inline.</p>
+                            </div>
+                        </div>
+                        <button type="button" id="edit-summary-btn" onclick="enableSummaryEdit()" class="rounded-full border border-transparent bg-white px-3 py-1 text-xs font-semibold text-blue-600 hover:bg-blue-50 dark:bg-gray-900 dark:text-blue-200 dark:hover:bg-blue-900 transition">
+                            Edit
+                        </button>
+                    </div>
+                    <div id="conversation-summary-view" class="min-h-[120px] rounded-2xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 leading-relaxed">
+                        <div id="conversation-summary-text" class="whitespace-pre-wrap break-words text-sm text-gray-700 dark:text-gray-200">Write a summary for this conversation</div>
+                    </div>
+                    <textarea id="conversation-summary" placeholder="Write a summary for this conversation" class="hidden w-full min-h-[120px] resize-none rounded-2xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:focus:border-blue-500 dark:focus:ring-blue-900"></textarea>
+                    <div id="summary-action-buttons" class="hidden mt-3 flex gap-2 justify-end">
+                        <button type="button" onclick="cancelSummaryEdit()" class="rounded-full border border-gray-300 bg-white px-4 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 transition">Cancel</button>
+                        <button type="button" id="save-summary-btn" onclick="saveSummary(true)" class="rounded-full bg-blue-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition">Save</button>
+                    </div>
+                </div>
+
+                {{-- TAGS CARD --}}
+                <div class="rounded-3xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 p-4 shadow-sm">
+                    <div class="flex items-center justify-between gap-3 mb-3">
+                        <div class="flex items-center gap-2 text-gray-800 dark:text-gray-100">
+                            <span class="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-200">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                            </span>
+                            <div>
+                                <h4 class="text-sm font-semibold">Tags</h4>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">Choose from database tags and add multiple tags.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 mb-3">
+                        <select id="conversation-tag-select" class="min-w-0 flex-1 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:focus:border-blue-500 dark:focus:ring-blue-900">
+                            <option value="">Select a tag</option>
+                        </select>
+                        <button type="button" id="add-tag-btn" onclick="handleAddTag()" class="rounded-full border border-transparent bg-white px-4 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-50 dark:bg-gray-900 dark:hover:bg-blue-800 transition">
+                            Add
+                        </button>
+                    </div>
+                    <div class="flex flex-wrap gap-2 text-sm" id="conversation-tags">
+                        <span class="text-xs text-gray-500 dark:text-gray-400">No tags yet</span>
+                    </div>
+                </div>
+
+                {{-- CUSTOMER DETAILS CARD --}}
+                <div class="rounded-3xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 p-4 shadow-sm">
+                    <div class="flex items-center gap-2 mb-3 text-gray-800 dark:text-gray-100">
+                        <span class="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-200">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.121 17.804A8.966 8.966 0 0112 15c2.14 0 4.118.745 5.665 2.004M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                        </span>
+                        <div>
+                            <h4 class="text-sm font-semibold">Customer Details</h4>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Contact, Facebook profile and ticket meta.</p>
+                        </div>
+                    </div>
+                    <div class="space-y-3 text-sm text-gray-600 dark:text-gray-400" id="customer-details">
+                        <div>Select a conversation to view customer information</div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div id="image-preview-modal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="relative max-w-full max-h-full overflow-hidden rounded-3xl bg-black shadow-2xl">
+            <button type="button" onclick="closeImagePreview()" class="absolute right-3 top-3 z-20 rounded-full bg-white/90 p-2 text-black hover:bg-white dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700">
+                ×
+            </button>
+            <img id="image-preview-full" src="" alt="Image preview" class="max-w-full max-h-[90vh] object-contain">
+        </div>
     </div>
 
     <div id="ticket-notification" class="pointer-events-none fixed bottom-4 left-4 z-50 hidden max-w-sm overflow-hidden rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-xl transition-all duration-300 ease-out dark:border-gray-700 dark:bg-gray-800">
@@ -288,6 +448,7 @@
             bindConversationEvents();
             subscribeToAllTicketChannels();
             subscribeToUserChannel();
+            bindSummaryInput();
 
         });
 
@@ -338,9 +499,11 @@
                 document.getElementById('chat-area').innerHTML =
                     data.html;
 
+                // Update context panel with ticket data
+                updateContextPanel(data.ticket);
+
                 bindReplyForm();
                 bindTicketControls();
-                bindUnreadToggle();
                 initMessageIds();
                 scrollMessagesToBottom();
                 subscribeToTicketChannel(ticketId);
@@ -502,6 +665,7 @@
 
                 const formData = new FormData();
                 formData.append('_token', '{{ csrf_token() }}');
+                formData.append('_method', 'PUT');
                 formData.append('agent_message', message);
 
                 Array.from(files).forEach((file, index) => {
@@ -511,7 +675,7 @@
                 const response = await fetch(
                     `/tickets/${currentTicketId}`,
                     {
-                        method: 'PUT',
+                        method: 'POST',
                         credentials: 'same-origin',
                         headers: {
                             'Accept': 'application/json',
@@ -695,8 +859,10 @@
                             <img
                                 src="${url}"
                                 alt="Conversation image"
-                                class="max-w-full rounded-xl border border-gray-200 dark:border-gray-600 mt-2 shadow-sm"
+                                class="max-w-full rounded-xl border border-gray-200 dark:border-gray-600 mt-2 shadow-sm cursor-pointer hover:opacity-90"
+                                style="max-height:240px;"
                                 loading="lazy"
+                                onclick="showImagePreview('${url}')"
                                 onerror="this.style.display='none'"
                             >
                         `;
@@ -740,6 +906,339 @@
             });
 
         }
+
+        function showImagePreview(url)
+        {
+            const modal = document.getElementById('image-preview-modal');
+            const previewImage = document.getElementById('image-preview-full');
+            if (!modal || !previewImage || !url) {
+                return;
+            }
+            previewImage.src = url;
+            modal.classList.remove('hidden');
+        }
+
+        function closeImagePreview()
+        {
+            const modal = document.getElementById('image-preview-modal');
+            const previewImage = document.getElementById('image-preview-full');
+            if (!modal || !previewImage) {
+                return;
+            }
+            modal.classList.add('hidden');
+            previewImage.src = '';
+        }
+
+        function showFilesModal()
+        {
+            const modal = document.getElementById('files-modal');
+            if (modal) {
+                modal.classList.remove('hidden');
+            }
+        }
+
+        function closeFilesModal()
+        {
+            const modal = document.getElementById('files-modal');
+            if (modal) {
+                modal.classList.add('hidden');
+            }
+        }
+
+        function toggleContextPanel()
+        {
+            const panel = document.getElementById('context-panel');
+            const icon = panel.querySelector('svg');
+            const openButton = document.getElementById('open-context-panel-button');
+            if (panel.classList.contains('hidden')) {
+                panel.classList.remove('hidden');
+                icon.style.transform = 'rotate(0deg)';
+                if (openButton) {
+                    openButton.classList.add('hidden');
+                }
+            } else {
+                panel.classList.add('hidden');
+                icon.style.transform = 'rotate(180deg)';
+                if (openButton) {
+                    openButton.classList.remove('hidden');
+                }
+            }
+        }
+
+        function updateContextPanel(ticketData)
+        {
+            if (!ticketData) return;
+
+            // Update summary
+            const summaryEl = document.getElementById('conversation-summary');
+            const summaryText = document.getElementById('conversation-summary-text');
+            const summaryValue = ticketData.summary || '';
+            if (summaryEl) {
+                summaryEl.value = summaryValue;
+                summaryEl.dataset.originalValue = summaryValue;
+            }
+            if (summaryText) {
+                summaryText.textContent = summaryValue || 'Write a summary for this conversation';
+            }
+
+            // Update tags
+            availableTags = ticketData.available_tags || [];
+            selectedTags = ticketData.tags || [];
+            renderTagOptions();
+            renderSelectedTags();
+
+            // Update customer details
+            const customerEl = document.getElementById('customer-details');
+            if (ticketData.customer) {
+                const customer = ticketData.customer;
+                customerEl.innerHTML = `
+                    <div class="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <div class="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold">
+                            ${customer.name ? customer.name.charAt(0).toUpperCase() : 'U'}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="font-medium text-gray-900 dark:text-gray-100 truncate">${escapeHtml(customer.name || 'Unknown')}</div>
+                            <div class="text-xs text-gray-500 dark:text-gray-400">${escapeHtml(customer.email || 'No email')}</div>
+                        </div>
+                    </div>
+                    ${customer.phone ? `<div class="text-sm text-gray-600 dark:text-gray-300"><strong>Phone:</strong> ${escapeHtml(customer.phone)}</div>` : ''}
+                    ${customer.location ? `<div class="text-sm text-gray-600 dark:text-gray-300"><strong>Location:</strong> ${escapeHtml(customer.location)}</div>` : ''}
+                    <div class="text-sm text-gray-600 dark:text-gray-300"><strong>Created:</strong> ${new Date(ticketData.created_at).toLocaleDateString()}</div>
+                `;
+            } else {
+                customerEl.innerHTML = '<div class="text-sm text-gray-500 dark:text-gray-400">Customer information not available</div>';
+            }
+        }
+
+        let availableTags = [];
+        let selectedTags = [];
+
+        function bindSummaryInput()
+        {
+            const summaryEl = document.getElementById('conversation-summary');
+
+            if (!summaryEl) {
+                return;
+            }
+
+            summaryEl.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    summaryEl.value = summaryEl.dataset.originalValue || '';
+                    disableSummaryEdit();
+                }
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    saveSummary(true);
+                }
+            });
+
+            summaryEl.addEventListener('blur', function () {
+                saveSummary();
+            });
+        }
+
+        function renderTagOptions()
+        {
+            const select = document.getElementById('conversation-tag-select');
+            if (!select) {
+                return;
+            }
+
+            const currentIds = selectedTags.map(tag => tag.id);
+            select.innerHTML = `
+                <option value="">Select a tag</option>
+                ${availableTags.map(tag => `
+                    <option value="${tag.id}" ${currentIds.includes(tag.id) ? 'disabled' : ''}>
+                        ${escapeHtml(tag.name)}
+                    </option>
+                `).join('')}
+            `;
+        }
+
+        function renderSelectedTags()
+        {
+            const tagsEl = document.getElementById('conversation-tags');
+            if (!tagsEl) {
+                return;
+            }
+
+            if (!selectedTags || selectedTags.length === 0) {
+                tagsEl.innerHTML = '<span class="text-xs text-gray-500 dark:text-gray-400">No tags yet</span>';
+                return;
+            }
+
+            tagsEl.innerHTML = selectedTags.map(tag => `
+                <span class="inline-flex items-center gap-2 rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                    ${escapeHtml(tag.name)}
+                    <button type="button" onclick="removeTagFromTicket(${tag.id})" class="rounded-full p-1 text-blue-700 hover:bg-blue-200 dark:text-blue-200 dark:hover:bg-blue-800">
+                        &times;
+                    </button>
+                </span>
+            `).join('');
+        }
+
+        function handleAddTag()
+        {
+            const select = document.getElementById('conversation-tag-select');
+            if (!select || !select.value) {
+                return;
+            }
+
+            const tagId = Number(select.value);
+            const tag = availableTags.find(tag => tag.id === tagId);
+            if (!tag || selectedTags.some(existing => existing.id === tagId)) {
+                return;
+            }
+
+            selectedTags.push(tag);
+            renderTagOptions();
+            renderSelectedTags();
+            saveTags();
+        }
+
+        async function saveTags()
+        {
+            if (!currentTicketId) {
+                return;
+            }
+
+            const tagIds = selectedTags.map(tag => tag.id);
+            try {
+                await fetch(`/tickets/${currentTicketId}`, {
+                    method: 'PUT',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ tags: tagIds })
+                });
+            } catch (error) {
+                console.error('Unable to save tags', error);
+            }
+        }
+
+        function removeTagFromTicket(tagId)
+        {
+            selectedTags = selectedTags.filter(tag => tag.id !== tagId);
+            renderTagOptions();
+            renderSelectedTags();
+            saveTags();
+        }
+
+        function enableSummaryEdit()
+        {
+            const summaryEl = document.getElementById('conversation-summary');
+            const summaryView = document.getElementById('conversation-summary-view');
+            const editButton = document.getElementById('edit-summary-btn');
+            const actionButtons = document.getElementById('summary-action-buttons');
+
+            if (!summaryEl || !summaryView || !editButton || !actionButtons) {
+                return;
+            }
+
+            summaryView.classList.add('hidden');
+            editButton.classList.add('hidden');
+            summaryEl.classList.remove('hidden');
+            actionButtons.classList.remove('hidden');
+            summaryEl.focus();
+        }
+
+        function disableSummaryEdit()
+        {
+            const summaryEl = document.getElementById('conversation-summary');
+            const summaryView = document.getElementById('conversation-summary-view');
+            const editButton = document.getElementById('edit-summary-btn');
+            const actionButtons = document.getElementById('summary-action-buttons');
+
+            if (!summaryEl || !summaryView || !editButton || !actionButtons) {
+                return;
+            }
+
+            summaryEl.classList.add('hidden');
+            summaryView.classList.remove('hidden');
+            editButton.classList.remove('hidden');
+            actionButtons.classList.add('hidden');
+        }
+
+        function cancelSummaryEdit()
+        {
+            const summaryEl = document.getElementById('conversation-summary');
+            const originalValue = summaryEl?.dataset.originalValue || '';
+            if (summaryEl) {
+                summaryEl.value = originalValue;
+            }
+            disableSummaryEdit();
+        }
+
+        async function saveSummary(force = false)
+        {
+            if (!currentTicketId) {
+                return;
+            }
+
+            const summaryEl = document.getElementById('conversation-summary');
+            const summaryText = document.getElementById('conversation-summary-text');
+            if (!summaryEl || !summaryText) {
+                return;
+            }
+
+            const originalValue = summaryEl.dataset.originalValue || '';
+            const summary = summaryEl.value.trim();
+
+            if (!force && summary === originalValue) {
+                disableSummaryEdit();
+                return;
+            }
+
+            try {
+                const response = await fetch(`/tickets/${currentTicketId}`, {
+                    method: 'PUT',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({ summary })
+                });
+
+                const data = await response.json();
+                if (data.status === 'success') {
+                    summaryEl.dataset.originalValue = summary;
+                    summaryText.textContent = summary || 'Write a summary for this conversation';
+                    disableSummaryEdit();
+                } else {
+                    console.error('Unable to save summary');
+                }
+            } catch (error) {
+                console.error('Unable to save summary', error);
+            }
+        }
+
+        document.addEventListener('click', function (event) {
+            const modal = document.getElementById('image-preview-modal');
+            if (!modal || modal.classList.contains('hidden')) {
+                return;
+            }
+            if (event.target === modal) {
+                closeImagePreview();
+            }
+        });
+
+        document.addEventListener('click', function (event) {
+            const modal = document.getElementById('files-modal');
+            if (!modal || modal.classList.contains('hidden')) {
+                return;
+            }
+            if (event.target === modal) {
+                closeFilesModal();
+            }
+        });
 
         function escapeHtml(unsafe)
         {
@@ -818,7 +1317,9 @@
                 ...message,
                 sender_type: message.sender_type || message.message_type,
                 message_type: message.message_type || message.sender_type,
-                attachments: message.attachments ?? []
+                message: message.message || message.text || message.content || message.body || '',
+                attachments: message.attachments ?? [],
+                created_at: message.created_at || new Date().toISOString()
             };
 
             const ticketItem = document.querySelector(`.conversation-item[data-id="${ticketId}"]`);
@@ -898,8 +1399,26 @@
             const unreadCount = ticket.unread_count ?? 1;
             const time = ticket.updated_at ? formatTime(ticket.updated_at) : '';
             const title = ticket.customer_name || ticket.customer_facebook_id || 'Unknown';
-            const snippet = ticket.subject || 'New ticket';
+            const channel = ticket.channel || ticket.latest_message?.channel || ticket.latestMessage?.channel || 'unknown';
+            const snippet = channel === 'comment'
+                ? (ticket.initial_message || ticket.subject || 'New comment')
+                : (ticket.subject || 'New ticket');
             const pageName = ticket.facebook_page_name ? `<span class="text-[10px] font-medium text-[#1877f2]">${escapeHtml(ticket.facebook_page_name)}</span>` : '';
+            const postLink = ticket.post_link || (ticket.facebook_post_id ? `https://www.facebook.com/${escapeHtml(ticket.facebook_post_id)}` : null);
+
+            const attachments = ticket.latest_message?.attachments || ticket.latestMessage?.attachments || ticket.attachments || [];
+            const imageAttachment = Array.isArray(attachments) ? attachments.find(a => a?.type === 'image') : null;
+            const imagePreviewBlock = imageAttachment ? `
+                <button type="button" onclick="event.stopPropagation(); showImagePreview('${escapeHtml(imageAttachment.payload?.url || imageAttachment.url || '')}')" class="mt-2 inline-flex items-center gap-2 rounded-2xl border border-gray-200 bg-white px-2 py-1 shadow-sm hover:border-blue-300 dark:border-gray-700 dark:bg-gray-900 transition">
+                    <img src="${escapeHtml(imageAttachment.payload?.url || imageAttachment.url || '')}" alt="Image preview" class="h-12 w-12 rounded-xl object-cover" loading="lazy">
+                    <span class="text-[10px] text-gray-500 dark:text-gray-400">View image</span>
+                </button>
+            ` : '';
+            const channelIcon = channel === 'messenger'
+                ? '<i class="fab fa-facebook-messenger fa-lg text-white"></i>'
+                : channel === 'comment'
+                    ? '<i class="fab fa-facebook fa-lg text-white"></i>'
+                    : escapeHtml((ticket.customer_name || ticket.customer_facebook_id || 'U').charAt(0).toUpperCase());
 
             return `
                 <div class="conversation-item mx-2 mt-1 px-3 py-2 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent bg-blue-50 dark:bg-blue-900/20"
@@ -908,10 +1427,7 @@
                     <div class="flex items-start gap-2">
                         <div class="relative shrink-0">
                             <div class="h-10 w-10 rounded-full bg-gradient-to-r from-[#1877f2] to-[#42a5f5] text-white flex items-center justify-center font-bold text-base shadow-sm">
-                                ${escapeHtml((ticket.customer_name || ticket.customer_facebook_id || 'U').charAt(0).toUpperCase())}
-                            </div>
-                            <div class="absolute -bottom-1 -right-1 h-3 w-3 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 flex items-center justify-center text-[8px] shadow-sm">
-                                💬
+                                ${channelIcon}
                             </div>
                         </div>
                         <div class="flex-1 min-w-0">
@@ -923,6 +1439,8 @@
                                 </div>
                             </div>
                             <p class="conversation-snippet text-xs text-gray-500 dark:text-gray-400 truncate leading-relaxed mb-1">${escapeHtml(snippet)}</p>
+                            ${postLink ? `<p class="text-[10px] text-blue-600 dark:text-blue-300 truncate leading-relaxed mb-1"><a href="${escapeHtml(postLink)}" target="_blank" rel="noopener noreferrer">View post</a></p>` : ''}
+                            ${imagePreviewBlock}
                             <div class="flex items-center gap-1">${pageName}</div>
                         </div>
                     </div>
@@ -974,15 +1492,17 @@
             const snippet = item.querySelector('.conversation-snippet');
             const time = item.querySelector('.conversation-time');
             const badge = getOrCreateUnreadBadge(item);
+            const indicator = item.querySelector('.unread-indicator');
             const unreadCount = parseInt(item.dataset.unreadCount || '0', 10);
             const nextCount = message.sender_type !== 'agent' ? unreadCount + 1 : unreadCount;
 
             if (snippet) {
-                snippet.textContent = message.message;
+                const messageText = message.message || message.text || message.content || message.body || '';
+                snippet.textContent = messageText;
             }
 
             if (time) {
-                time.textContent = formatTime(message.created_at);
+                time.textContent = formatTime(message.created_at || message.created_at || new Date());
             }
 
             if (message.sender_type !== 'agent' && badge) {
@@ -992,10 +1512,37 @@
                     badge.classList.remove('hidden');
                     badge.style.display = 'inline-flex';
                     item.classList.add('bg-blue-50', 'dark:bg-blue-900/20');
+
+                    // Show unread indicator dot
+                    if (indicator) {
+                        indicator.style.display = 'block';
+                    }
+
+                    // Update text colors to unread state
+                    const title = item.querySelector('h3');
+                    if (title) {
+                        title.classList.remove('text-gray-800', 'dark:text-gray-200');
+                        title.classList.add('text-gray-900', 'dark:text-gray-100');
+                    }
+
+                    if (time) {
+                        time.classList.remove('text-gray-400', 'dark:text-gray-500');
+                        time.classList.add('text-gray-900', 'dark:text-gray-100', 'font-medium');
+                    }
+
+                    if (snippet) {
+                        snippet.classList.remove('text-gray-500', 'dark:text-gray-400');
+                        snippet.classList.add('text-gray-900', 'dark:text-gray-100', 'font-medium');
+                    }
                 } else {
                     badge.classList.add('hidden');
                     badge.style.display = 'none';
                     item.classList.remove('bg-blue-50', 'dark:bg-blue-900/20');
+
+                    // Hide unread indicator dot
+                    if (indicator) {
+                        indicator.style.display = 'none';
+                    }
                 }
                 item.dataset.unreadCount = nextCount;
             }
@@ -1010,6 +1557,7 @@
             }
 
             const badge = item.querySelector('.conversation-unread-badge');
+            const indicator = item.querySelector('.unread-indicator');
 
             if (badge) {
                 badge.dataset.count = '0';
@@ -1018,8 +1566,32 @@
                 badge.style.display = 'none';
             }
 
+            if (indicator) {
+                indicator.style.display = 'none';
+            }
+
             item.dataset.unreadCount = '0';
             item.classList.remove('bg-blue-50', 'dark:bg-blue-900/20');
+
+            // Update text colors to read state
+            const title = item.querySelector('h3');
+            const time = item.querySelector('.conversation-time');
+            const snippet = item.querySelector('.conversation-snippet');
+
+            if (title) {
+                title.classList.remove('text-gray-900', 'dark:text-gray-100');
+                title.classList.add('text-gray-800', 'dark:text-gray-200');
+            }
+
+            if (time) {
+                time.classList.remove('text-gray-900', 'dark:text-gray-100', 'font-medium');
+                time.classList.add('text-gray-400', 'dark:text-gray-500');
+            }
+
+            if (snippet) {
+                snippet.classList.remove('text-gray-900', 'dark:text-gray-100', 'font-medium');
+                snippet.classList.add('text-gray-500', 'dark:text-gray-400');
+            }
         }
 
         function initMessageIds()
@@ -1086,10 +1658,42 @@
                         badge.classList.remove('hidden');
                         badge.style.display = 'inline-flex';
                         ticketItem.classList.add('bg-blue-50', 'dark:bg-blue-900/20');
+
+                        // Show unread indicator dot
+                        const indicator = ticketItem.querySelector('.unread-indicator');
+                        if (indicator) {
+                            indicator.style.display = 'block';
+                        }
+
+                        // Update text colors to unread state
+                        const title = ticketItem.querySelector('h3');
+                        const time = ticketItem.querySelector('.conversation-time');
+                        const snippet = ticketItem.querySelector('.conversation-snippet');
+
+                        if (title) {
+                            title.classList.remove('text-gray-800', 'dark:text-gray-200');
+                            title.classList.add('text-gray-900', 'dark:text-gray-100');
+                        }
+
+                        if (time) {
+                            time.classList.remove('text-gray-400', 'dark:text-gray-500');
+                            time.classList.add('text-gray-900', 'dark:text-gray-100', 'font-medium');
+                        }
+
+                        if (snippet) {
+                            snippet.classList.remove('text-gray-500', 'dark:text-gray-400');
+                            snippet.classList.add('text-gray-900', 'dark:text-gray-100', 'font-medium');
+                        }
                     } else {
                         badge.classList.add('hidden');
                         badge.style.display = 'none';
                         ticketItem.classList.remove('bg-blue-50', 'dark:bg-blue-900/20');
+
+                        // Hide unread indicator dot
+                        const indicator = ticketItem.querySelector('.unread-indicator');
+                        if (indicator) {
+                            indicator.style.display = 'none';
+                        }
                     }
                 }
             } catch (error) {
@@ -1097,21 +1701,61 @@
             }
         }
 
-        function bindUnreadToggle()
+        function toggleConversationMenu(event, ticketId)
         {
-            const button = document.getElementById('toggle-unread-btn');
-            if (!button) {
-                return;
+            event.stopPropagation();
+
+            // Close all other menus first
+            document.querySelectorAll('.conversation-menu').forEach(menu => {
+                if (menu.id !== `conversation-menu-${ticketId}`) {
+                    menu.classList.add('hidden');
+                }
+            });
+
+            // Toggle the clicked menu
+            const menu = document.getElementById(`conversation-menu-${ticketId}`);
+            if (menu) {
+                menu.classList.toggle('hidden');
+            }
+        }
+
+        async function markConversationUnread(ticketId)
+        {
+            // Close the menu
+            const menu = document.getElementById(`conversation-menu-${ticketId}`);
+            if (menu) {
+                menu.classList.add('hidden');
             }
 
-            button.addEventListener('click', function () {
-                if (!currentTicketId) {
-                    return;
-                }
-
-                markTicketUnread(currentTicketId);
-            });
+            // Mark as unread
+            await markTicketUnread(ticketId);
         }
+
+        async function toggleConversationReadStatus(ticketId, isCurrentlyUnread)
+        {
+            // Close the menu
+            const menu = document.getElementById(`conversation-menu-${ticketId}`);
+            if (menu) {
+                menu.classList.add('hidden');
+            }
+
+            if (isCurrentlyUnread) {
+                // Mark as read
+                await markTicketRead(ticketId);
+            } else {
+                // Mark as unread
+                await markTicketUnread(ticketId);
+            }
+        }
+
+        // Close menus when clicking outside
+        document.addEventListener('click', function(event) {
+            if (!event.target.closest('.conversation-menu-btn')) {
+                document.querySelectorAll('.conversation-menu').forEach(menu => {
+                    menu.classList.add('hidden');
+                });
+            }
+        });
 
     </script>
 

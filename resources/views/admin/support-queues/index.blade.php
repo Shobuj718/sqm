@@ -7,7 +7,7 @@
                 </h2>
                 <p class="text-sm text-gray-600 dark:text-gray-300">Create and manage support queues for automatic ticket assignment.</p>
             </div>
-            <a href="{{ route('admin.support-queues.create') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
+            <a href="{{ route('support-queues.create') }}" class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
                 <span>+ Add Queue</span>
             </a>
         </div>
@@ -45,10 +45,10 @@
                                     </div>
                                 </div>
                                 <div class="flex gap-2">
-                                    <a href="{{ route('admin.support-queues.show', $queue) }}" class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700">
+                                    <a href="{{ route('support-queues.show', $queue) }}" class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700">
                                         Assign Pages & Agents
                                     </a>
-                                    <a href="{{ route('admin.support-queues.edit', $queue) }}" class="inline-flex items-center px-4 py-2 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-700">
+                                    <a href="{{ route('support-queues.edit', $queue) }}" class="inline-flex items-center px-4 py-2 bg-gray-600 text-white text-sm rounded-md hover:bg-gray-700">
                                         Edit
                                     </a>
                                 </div>
@@ -57,7 +57,7 @@
                     @empty
                         <div class="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-12 text-center">
                             <p class="text-gray-700 dark:text-gray-300 mb-4">No support queues found.</p>
-                            <a href="{{ route('admin.support-queues.create') }}" class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
+                            <a href="{{ route('support-queues.create') }}" class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">
                                 Create Your First Queue
                             </a>
                         </div>

@@ -71,10 +71,14 @@ Route::middleware(['auth'])->group(function () {
     });
 
     // Ticket Management
-    Route::get('/tickets', [\App\Http\Controllers\Admin\TicketController::class, 'index'])->name('tickets.index');
+     Route::get('/all-tickets', [\App\Http\Controllers\Admin\TicketController::class, 'statuses'])->name('all-tickets');
+    Route::post('/all-tickets/bulk-assign', [\App\Http\Controllers\Admin\TicketController::class, 'bulkAssign'])->name('tickets.bulkAssign');
+
+    Route::get('/convesations', [\App\Http\Controllers\Admin\TicketController::class, 'index'])->name('tickets.index');
     Route::get('/tickets/{ticket}', [\App\Http\Controllers\Admin\TicketController::class, 'show'])->name('tickets.show');
     Route::get('/tickets/{ticket}/messages', [\App\Http\Controllers\Admin\TicketController::class, 'getMessages'])->name('tickets.getMessages');
     Route::get('/api/unread-messages-count', [\App\Http\Controllers\Admin\TicketController::class, 'getUnreadMessagesCount'])->name('tickets.unreadCount');
+
     Route::put('/tickets/{ticket}', [\App\Http\Controllers\Admin\TicketController::class, 'update'])->name('tickets.update');
     Route::post('/tickets/{ticket}/assign', [\App\Http\Controllers\Admin\TicketController::class, 'assign'])->name('tickets.assign');
     Route::post('/tickets/{ticket}/close', [\App\Http\Controllers\Admin\TicketController::class, 'close'])->name('tickets.close');
@@ -126,24 +130,23 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/users/{user}/edit', [UserController::class, 'edit'])->name('users.edit');
         Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
         Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+        });
 
-        // Support queue management
-        Route::get('/support-queues', [SupportQueueController::class, 'index'])->name('support-queues.index');
-        Route::get('/support-queues/create', [SupportQueueController::class, 'create'])->name('support-queues.create');
-        Route::post('/support-queues', [SupportQueueController::class, 'store'])->name('support-queues.store');
-        Route::get('/support-queues/{supportQueue}', [SupportQueueController::class, 'show'])->name('support-queues.show');
-        Route::get('/support-queues/{supportQueue}/edit', [SupportQueueController::class, 'edit'])->name('support-queues.edit');
-        Route::put('/support-queues/{supportQueue}', [SupportQueueController::class, 'update'])->name('support-queues.update');
-        Route::post('/support-queues/{supportQueue}/assign', [SupportQueueController::class, 'assignBoth'])->name('support-queues.assign');
-        Route::post('/support-queues/{supportQueue}/pages', [SupportQueueController::class, 'assignPages'])->name('support-queues.assign-pages');
-        Route::post('/support-queues/{supportQueue}/agents', [SupportQueueController::class, 'assignAgents'])->name('support-queues.assign-agents');
+        Route::middleware('role:admin')->group(function () {
+            Route::get('/support-queues', [SupportQueueController::class, 'index'])->name('support-queues.index');
+            Route::get('/support-queues/create', [SupportQueueController::class, 'create'])->name('support-queues.create');
+            Route::post('/support-queues', [SupportQueueController::class, 'store'])->name('support-queues.store');
+            Route::get('/support-queues/{supportQueue}', [SupportQueueController::class, 'show'])->name('support-queues.show');
+            Route::get('/support-queues/{supportQueue}/edit', [SupportQueueController::class, 'edit'])->name('support-queues.edit');
+            Route::put('/support-queues/{supportQueue}', [SupportQueueController::class, 'update'])->name('support-queues.update');
+            Route::post('/support-queues/{supportQueue}/assign', [SupportQueueController::class, 'assignBoth'])->name('support-queues.assign');
+            Route::post('/support-queues/{supportQueue}/pages', [SupportQueueController::class, 'assignPages'])->name('support-queues.assign-pages');
+            Route::post('/support-queues/{supportQueue}/agents', [SupportQueueController::class, 'assignAgents'])->name('support-queues.assign-agents');
+        });
     });
 
-});
+    Route::post('/facebook/webhook', [PagesController::class, 'webhookReply']);
+    Route::get('/facebook/webhook', [PagesController::class,'webhook'])
+        ->name('webhook');
 
-
-Route::post('/facebook/webhook', [PagesController::class, 'webhookReply']);
-Route::get('/facebook/webhook', [PagesController::class,'webhook'])
-    ->name('webhook');
-
-require __DIR__.'/auth.php';
+    require __DIR__.'/auth.php';

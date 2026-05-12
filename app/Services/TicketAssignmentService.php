@@ -33,7 +33,7 @@ class TicketAssignmentService
         $agent = $queue->users()
             ->where('availability_status', User::STATUS_ONLINE)
             ->withCount(['tickets as active_ticket_count' => function ($query) {
-                $query->whereIn('status', ['open', 'in_progress']);
+                $query->whereIn('status', ['open', 'waiting']);
             }])
             ->orderBy('active_ticket_count')
             ->orderBy('id')

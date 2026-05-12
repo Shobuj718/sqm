@@ -7,7 +7,7 @@
                 </h2>
                 <p class="text-sm text-gray-600 dark:text-gray-300">Update queue details.</p>
             </div>
-            <a href="{{ route('admin.support-queues.index') }}" class="inline-flex items-center px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-600">Back</a>
+            <a href="{{ route('support-queues.index') }}" class="inline-flex items-center px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-600">Back</a>
         </div>
     </x-slot>
 
@@ -15,7 +15,7 @@
         <div class="max-w-3xl mx-auto sm:px-6 lg:px-8">
             <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
                 <div class="p-6">
-                    <form action="{{ route('admin.support-queues.update', $supportQueue) }}" method="POST" class="space-y-6">
+                    <form action="{{ route('support-queues.update', $supportQueue) }}" method="POST" class="space-y-6">
                         @csrf
                         @method('PUT')
 
@@ -64,7 +64,7 @@
                         </div>
 
                         <div class="flex gap-3 justify-end">
-                            <a href="{{ route('admin.support-queues.index') }}" class="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700">
+                            <a href="{{ route('support-queues.index') }}" class="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700">
                                 Cancel
                             </a>
                             <button type="submit" class="inline-flex items-center px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 font-medium">

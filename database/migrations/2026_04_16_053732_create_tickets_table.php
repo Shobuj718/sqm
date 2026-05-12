@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('customer_name')->nullable();
             $table->string('subject')->nullable();
             $table->text('initial_message')->nullable();
-            $table->enum('status', ['open', 'in_progress', 'resolved', 'closed'])->default('open');
+            $table->enum('status', ['open', 'waiting', 'solved', 'closed'])->default('open');
             $table->enum('priority', ['low', 'medium', 'high', 'urgent'])->default('medium');
             $table->unsignedBigInteger('assigned_to')->nullable();
             $table->timestamps();

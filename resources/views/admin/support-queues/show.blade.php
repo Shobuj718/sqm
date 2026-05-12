@@ -5,7 +5,7 @@
                 <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">Assign Pages & Agents</h2>
                 <p class="text-sm text-gray-600 dark:text-gray-300">{{ $supportQueue->name }}</p>
             </div>
-            <a href="{{ route('admin.support-queues.index') }}" class="inline-flex items-center px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-600">Back to queues</a>
+            <a href="{{ route('support-queues.index') }}" class="inline-flex items-center px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-600">Back to queues</a>
         </div>
     </x-slot>
 
@@ -20,7 +20,7 @@
             <div class="grid gap-6 lg:grid-cols-3">
                 <div class="lg:col-span-2 bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg p-6">
                     <h3 class="font-semibold text-gray-900 dark:text-gray-100 mb-6">Manage Pages & Agents</h3>
-                    <form action="{{ route('admin.support-queues.assign', $supportQueue) }}" method="POST" class="space-y-6">
+                    <form action="{{ route('support-queues.assign', $supportQueue) }}" method="POST" class="space-y-6">
                         @csrf
 
                         <div class="grid gap-6 lg:grid-cols-2">

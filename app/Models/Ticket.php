@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Models\Tag;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -18,11 +20,14 @@ class Ticket extends Model
         'customer_name',
         'subject',
         'initial_message',
+        'summary',
         'status',
         'priority',
         'assigned_to',
         'support_queue_id',
-        'channel'
+        'channel',
+        'facebook_post_id',
+        'facebook_comment_id',
     ];
 
     protected $casts = [
@@ -30,6 +35,18 @@ class Ticket extends Model
         'updated_at' => 'datetime',
         'deleted_at' => 'datetime',
     ];
+
+    protected $appends = [
+        'facebook_post_link',
+    ];
+
+    public function getFacebookPostLinkAttribute(): ?string
+    {
+        if (!empty($this->facebook_post_id)) {
+            return 'https://www.facebook.com/' . $this->facebook_post_id;
+        }
+        return null;
+    }
 
     /**
      * Get the Facebook page associated with this ticket.
@@ -69,6 +86,14 @@ class Ticket extends Model
     }
 
     /**
+     * Get tags assigned to this ticket.
+     */
+    public function tags(): BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class, 'label_ticket', 'ticket_id', 'label_id');
+    }
+
+    /**
      * Get all customer messages in this ticket.
      */
     public function customerMessages(): HasMany
@@ -97,11 +122,11 @@ class Ticket extends Model
     }
 
     /**
-     * Check if ticket is open.
+     * Check if ticket is open or waiting for a response.
      */
     public function isOpen(): bool
     {
-        return in_array($this->status, ['open', 'in_progress']);
+        return in_array($this->status, ['open', 'waiting']);
     }
 
     /**
@@ -118,7 +143,7 @@ class Ticket extends Model
      */
     public function resolve(): self
     {
-        $this->update(['status' => 'resolved']);
+        $this->update(['status' => 'solved']);
         return $this;
     }
 

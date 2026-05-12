@@ -95,7 +95,7 @@ class User extends Authenticatable
     public function refreshAvailabilityStatusBasedOnLoad(): void
     {
         $activeCount = $this->tickets()
-            ->whereIn('status', ['open', 'in_progress'])
+            ->whereIn('status', ['open', 'waiting'])
             ->count();
 
         if ($activeCount >= 25 && $this->availability_status !== self::STATUS_BUSY) {

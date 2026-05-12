@@ -10,6 +10,28 @@
     <div class="py-12">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
             <!-- Status Badges Summary -->
+            @if(session('success'))
+                <div class="mb-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 dark:border-green-700 dark:bg-green-900 dark:text-green-100">
+                    {{ session('success') }}
+                </div>
+            @endif
+
+            @if(session('error'))
+                <div class="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-700 dark:bg-red-900 dark:text-red-100">
+                    {{ session('error') }}
+                </div>
+            @endif
+
+            @if($errors->any())
+                <div class="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-700 dark:bg-red-900 dark:text-red-100">
+                    <ul class="list-disc list-inside space-y-1">
+                        @foreach($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
             <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                 <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
                     <div class="p-6">
@@ -75,7 +97,7 @@
                             </div>
                             <div class="ml-5 w-0 flex-1">
                                 <dl>
-                                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Resolved</dt>
+                                    <dt class="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">Solved</dt>
                                     <dd class="text-lg font-medium text-gray-900 dark:text-gray-100">{{ $summaryResolved }}</dd>
                                 </dl>
                             </div>
@@ -87,15 +109,15 @@
             <!-- Filters -->
             <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg mb-6">
                 <div class="p-6">
-                    <form method="GET" action="{{ route('tickets.index') }}" class="flex flex-col sm:flex-row gap-4">
+                    <form method="GET" action="{{ url()->current() }}" class="flex flex-col sm:flex-row gap-4">
                         <div class="flex-1 max-w-md">
                             <input type="text" name="search" placeholder="Search by name or ID..." value="{{ request('search') }}" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-gray-200">
                         </div>
                         <select name="status" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-gray-200">
                             <option value="all">All Status</option>
                             <option value="open" {{ request('status') === 'open' ? 'selected' : '' }}>Open</option>
-                            <option value="in_progress" {{ request('status') === 'in_progress' ? 'selected' : '' }}>In Progress</option>
-                            <option value="resolved" {{ request('status') === 'resolved' ? 'selected' : '' }}>Resolved</option>
+                            <option value="waiting" {{ request('status') === 'waiting' ? 'selected' : '' }}>Waiting</option>
+                            <option value="solved" {{ request('status') === 'solved' ? 'selected' : '' }}>Solved</option>
                             <option value="closed" {{ request('status') === 'closed' ? 'selected' : '' }}>Closed</option>
                         </select>
                         <select name="priority" class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-gray-200">
@@ -110,12 +132,41 @@
                 </div>
             </div>
 
-            <!-- Tickets Table -->
+            <!-- Bulk Assign -->
+            <form id="bulk-assign-form" method="POST" action="{{ route('tickets.bulkAssign') }}" class="space-y-3">
+                @csrf
+                <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg mb-6">
+                    <div class="p-6 grid grid-cols-1 lg:grid-cols-3 gap-4 items-end">
+                        <div>
+                            <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Selected Tickets</p>
+                            <div class="text-xl font-semibold text-gray-900 dark:text-gray-100" id="selected-ticket-count">0 selected</div>
+                        </div>
+                        <div>
+                            <label for="bulk-assign-agent" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Assign to</label>
+                            <select id="bulk-assign-agent" name="assigned_to" class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-gray-200">
+                                <option value="me">Assign to me</option>
+                                @foreach($agentOptions as $agent)
+                                    <option value="{{ $agent->id }}">{{ $agent->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div>
+                            <button type="submit" id="bulk-assign-button" class="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                Assign selected tickets
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tickets Table -->
             <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                         <thead class="bg-gray-50 dark:bg-gray-700">
                             <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                    <input id="select-all-tickets" type="checkbox" class="h-4 w-4 text-blue-600 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700" />
+                                </th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">ID</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Customer</th>
                                 <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Subject</th>
@@ -129,11 +180,14 @@
                         <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                             @forelse($tickets as $ticket)
                             <tr class="hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
+                                    <input type="checkbox" name="ticket_ids[]" class="ticket-select-checkbox h-4 w-4 text-blue-600 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700" value="{{ $ticket->id }}" />
+                                </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">#{{ $ticket->id }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">{{ $ticket->customer_name ?? $ticket->customer_facebook_id  }}</td>
                                 <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate">{{ $ticket->subject }}</td>
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium {{ $ticket->status === 'open' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' : ($ticket->status === 'in_progress' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : ($ticket->status === 'resolved' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200')) }}">
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium {{ $ticket->status === 'open' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' : ($ticket->status === 'waiting' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : ($ticket->status === 'solved' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200')) }}">
                                         {{ ucfirst(str_replace('_', ' ', $ticket->status)) }}
                                     </span>
                                 </td>
@@ -170,4 +224,39 @@
             </div>
         </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const selectAllCheckbox = document.getElementById('select-all-tickets');
+            const ticketCheckboxes = Array.from(document.querySelectorAll('.ticket-select-checkbox'));
+            const selectedCountEl = document.getElementById('selected-ticket-count');
+            const bulkAssignButton = document.getElementById('bulk-assign-button');
+
+            function updateSelection() {
+                const selectedCount = ticketCheckboxes.filter((checkbox) => checkbox.checked).length;
+                selectedCountEl.textContent = `${selectedCount} selected`;
+                bulkAssignButton.disabled = selectedCount === 0;
+
+                if (selectAllCheckbox) {
+                    selectAllCheckbox.checked = selectedCount === ticketCheckboxes.length && selectedCount > 0;
+                    selectAllCheckbox.indeterminate = selectedCount > 0 && selectedCount < ticketCheckboxes.length;
+                }
+            }
+
+            if (selectAllCheckbox) {
+                selectAllCheckbox.addEventListener('change', function () {
+                    ticketCheckboxes.forEach((checkbox) => {
+                        checkbox.checked = selectAllCheckbox.checked;
+                    });
+                    updateSelection();
+                });
+            }
+
+            ticketCheckboxes.forEach((checkbox) => {
+                checkbox.addEventListener('change', updateSelection);
+            });
+
+            updateSelection();
+        });
+    </script>
 </x-layouts.app>

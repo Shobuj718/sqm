@@ -130,21 +130,35 @@ class HandleFacebookMessageJob implements ShouldQueue
 
             $text = $this->messageData['text'] ?? '';
 
-            // Check if a ticket already exists for this customer on this page
+            // Prefer an active ticket that is still open or waiting.
             $ticket = Ticket::where('facebook_page_id', $this->pageId)
                 ->where('customer_facebook_id', $this->senderId)
-                ->where('status', '!=', 'closed')
+                ->where('channel', 'messenger')
+                ->whereIn('status', ['open', 'waiting'])
+                ->latest('updated_at')
                 ->first();
 
             if ($ticket) {
-                // Ticket already exists, update status if needed
-                if ($ticket->status === 'resolved') {
-                    $ticket->update(['status' => 'in_progress']);
-                }
                 return $ticket;
             }
 
-            // No existing ticket, create a new one
+            // If the most recent ticket was solved, reopen it. If it was closed, start a fresh ticket.
+            $lastTicket = Ticket::where('facebook_page_id', $this->pageId)
+                ->where('customer_facebook_id', $this->senderId)
+                ->where('channel', 'messenger')
+                ->latest('updated_at')
+                ->first();
+
+            if ($lastTicket && $lastTicket->status === 'solved') {
+                $lastTicket->update(['status' => 'open']);
+                return $lastTicket;
+            }
+
+            if ($lastTicket && $lastTicket->status === 'closed') {
+                // continue to create a new ticket for a fresh closed conversation
+            }
+
+            // No existing open/waiting ticket, create a new one
             $ticket = Ticket::create([
                 'facebook_page_id' => $this->pageId,
                 'customer_facebook_id' => $this->senderId,

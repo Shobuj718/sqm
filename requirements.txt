@@ -60,7 +60,8 @@
 -- Conversation History
 -- On a conversation load only first 10 messages
 
-# Bug
--- New Ticket Create on Webhook but not append on agent conversation list 
+
+-- Different comment Different ticket
+-- When comment it should , include post link and text on the conversation
 
 
