@@ -85,6 +85,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/tickets/{ticket}/resolve', [\App\Http\Controllers\Admin\TicketController::class, 'resolve'])->name('tickets.resolve');
     Route::delete('/tickets/{ticket}', [\App\Http\Controllers\Admin\TicketController::class, 'destroy'])->name('tickets.destroy');
     Route::post('/tickets/{ticket}/mark-read', [\App\Http\Controllers\Admin\TicketController::class, 'markMessagesAsRead'])->name('tickets.markRead');
+    Route::get('/tickets/{ticket}/ai-suggestions', [\App\Http\Controllers\Admin\TicketController::class, 'getAISuggestions'])->name('tickets.aiSuggestions');
+    Route::get('/tickets/{ticket}/ai-summary', [\App\Http\Controllers\Admin\TicketController::class, 'generateSummary'])->name('tickets.aiSummary');
     Route::post('/tickets/{ticket}/mark-unread', [\App\Http\Controllers\Admin\TicketController::class, 'markMessagesAsUnread'])->name('tickets.markUnread');
     Route::post('/messages/{message}/mark-read', [\App\Http\Controllers\Admin\TicketController::class, 'markMessageAsRead'])->name('messages.markRead');
 

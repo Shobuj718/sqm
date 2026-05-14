@@ -352,9 +352,14 @@
                                 <p class="text-xs text-gray-500 dark:text-gray-400">Click Edit to update the summary inline.</p>
                             </div>
                         </div>
-                        <button type="button" id="edit-summary-btn" onclick="enableSummaryEdit()" class="rounded-full border border-transparent bg-white px-3 py-1 text-xs font-semibold text-blue-600 hover:bg-blue-50 dark:bg-gray-900 dark:text-blue-200 dark:hover:bg-blue-900 transition">
-                            Edit
-                        </button>
+                        <div class="flex gap-2 items-center">
+                            <button type="button" id="ai-summary-btn" onclick="generateAISummary()" class="rounded-full border border-transparent bg-white px-3 py-1 text-xs font-semibold text-purple-600 hover:bg-purple-50 dark:bg-gray-900 dark:text-purple-200 dark:hover:bg-purple-900 transition" title="Generate AI summary">
+                                🤖 AI
+                            </button>
+                            <button type="button" id="edit-summary-btn" onclick="enableSummaryEdit()" class="rounded-full border border-transparent bg-white px-3 py-1 text-xs font-semibold text-blue-600 hover:bg-blue-50 dark:bg-gray-900 dark:text-blue-200 dark:hover:bg-blue-900 transition">
+                                Edit
+                            </button>
+                        </div>
                     </div>
                     <div id="conversation-summary-view" class="min-h-[120px] rounded-2xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 leading-relaxed">
                         <div id="conversation-summary-text" class="whitespace-pre-wrap break-words text-sm text-gray-700 dark:text-gray-200">Write a summary for this conversation</div>
@@ -729,42 +734,46 @@
             const messagesWrapper = container.querySelector('.max-w-2xl') || container;
             const lastMessageElement = messagesWrapper.querySelector('[data-message-id]:last-child');
             const lastMessageType = lastMessageElement?.dataset.messageType;
+            const lastAgentId = lastMessageElement?.dataset.agentId;
             const lastCreatedAt = lastMessageElement?.dataset.createdAt ? new Date(lastMessageElement.dataset.createdAt) : null;
             const currentCreatedAt = new Date(message.created_at);
 
+            const isAgentMessage = message.message_type === 'agent' || message.sender_type === 'agent';
+            const pageName = message.facebook_page_name || 'Agent';
+            const customerName = message.customer_name || 'U';
+            const agentName = message.agent_name || 'Agent';
+            const avatar = customerName.charAt(0).toUpperCase();
+            const currentAgentId = String(message.user_id || '');
+
             const showMeta = !lastMessageElement ||
                 lastMessageType !== message.message_type ||
-                (lastCreatedAt && ((currentCreatedAt - lastCreatedAt) / 60000) > MESSAGE_GAP_THRESHOLD_MINUTES);
+                (lastCreatedAt && ((currentCreatedAt - lastCreatedAt) / 60000) > MESSAGE_GAP_THRESHOLD_MINUTES) ||
+                (isAgentMessage && currentAgentId !== lastAgentId);
             const showTime = !lastMessageElement ||
                 !lastCreatedAt ||
                 ((currentCreatedAt - lastCreatedAt) / 60000) > 5;
 
             messageIds.add(messageId);
 
-            const isAgentMessage = message.message_type === 'agent' || message.sender_type === 'agent';
-            const pageName = message.facebook_page_name || 'Agent';
-            const customerName = message.customer_name || 'U';
-            const avatar = customerName.charAt(0).toUpperCase();
+            console.log('Agent message debug:', { isAgentMessage, agentName, message });
 
             let messageHTML = '';
 
             if (isAgentMessage) {
                 messageHTML = `
-                    <div class="flex justify-end" data-message-id="${message.id}" data-message-type="agent" data-created-at="${message.created_at}">
+                    <div class="flex justify-end" data-message-id="${message.id}" data-message-type="agent" data-agent-id="${currentAgentId}" data-created-at="${message.created_at}">
                         <div class="flex flex-col gap-1 max-w-[70%]">
-                            ${showMeta ? `
-                                <div class="text-xs font-semibold mb-1.5 opacity-90 flex justify-end items-center gap-2 text-white">
-                                    <span class="rounded-full bg-white/10 px-2 py-1 text-white">
-                                        Replying as ${escapeHtml(pageName)}
-                                    </span>
-                                </div>
-                            ` : ''}
                             <div class="px-4 py-2.5 rounded-2xl rounded-br-md bg-gradient-to-r from-[#1877f2] to-[#1b74e4] text-white shadow-sm">
                                 <p class="text-sm leading-relaxed break-words">
                                     ${escapeHtml(message.message)}
                                 </p>
                                 ${renderAttachments(message.attachments)}
                             </div>
+                            ${showMeta ? `
+                                <div class="text-xs flex justify-end items-center gap-2 mt-1">
+                                    <span class="text-gray-400 dark:text-gray-500">${escapeHtml(agentName)}</span>
+                                </div>
+                            ` : ''}
                             ${showTime ? `
                                 <span class="text-xs text-gray-200 text-right px-2">
                                     ${formatTime(message.created_at)}
@@ -1756,6 +1765,143 @@
                 });
             }
         });
+
+        // Generate AI Summary
+        async function generateAISummary()
+        {
+            if (!currentTicketId) {
+                alert('No ticket selected');
+                return;
+            }
+
+            const btn = document.getElementById('ai-summary-btn');
+            const originalText = btn.innerHTML;
+
+            // Show loading state
+            btn.innerHTML = '⏳ Generating...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch(`/tickets/${currentTicketId}/ai-summary`, {
+                    method: 'GET',
+                    headers: {
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Enable edit mode
+                    enableSummaryEdit();
+
+                    // Fill textarea with AI-generated summary
+                    const summaryEl = document.getElementById('conversation-summary');
+                    if (summaryEl) {
+                        summaryEl.value = data.summary;
+                        summaryEl.focus();
+                    }
+                } else {
+                    alert('Failed to generate summary: ' + (data.message || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error generating AI summary:', error);
+                alert('Error generating AI summary. Please try again.');
+            } finally {
+                // Reset button
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        // Get AI Suggestions for reply
+        async function getAISuggestions(ticketId) {
+            const btn = document.getElementById('replay-suggest-btn');
+            const originalText = btn.innerHTML;
+
+            // Show loading state
+            btn.innerHTML = '⏳ Generating...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch(`/tickets/${ticketId}/ai-suggestions`, {
+                    method: 'GET',
+                    headers: {
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    }
+                });
+
+                const data = await response.json();
+                console.log('AI suggestions response:', data);
+
+                if (data.success) {
+                    displayAISuggestions(data.suggestions);
+                } else {
+                    alert('Failed to get AI suggestions: ' + (data.message || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error getting AI suggestions:', error);
+                alert('Error getting AI suggestions. Please try again.');
+            } finally {
+                // Reset button
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        // Display AI suggestions
+        function displayAISuggestions(suggestions) {
+            const container = document.getElementById('ai-suggestions');
+            const list = document.getElementById('suggestions-list');
+
+            list.innerHTML = '';
+
+            suggestions.forEach((suggestion, index) => {
+                const suggestionEl = document.createElement('div');
+                suggestionEl.className = 'p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-md cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors';
+                suggestionEl.onclick = () => selectSuggestion(suggestion);
+
+                suggestionEl.innerHTML = `
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1 text-sm text-gray-900 dark:text-gray-100">
+                            ${escapeHtml(suggestion)}
+                        </div>
+                        <div class="ml-2 text-xs text-purple-600 dark:text-purple-400 font-medium">
+                            Click to use
+                        </div>
+                    </div>
+                `;
+
+                list.appendChild(suggestionEl);
+            });
+
+            container.classList.remove('hidden');
+        }
+
+        // Select a suggestion and put it in the textarea
+        function selectSuggestion(suggestion) {
+            const textarea = document.getElementById('agent_message');
+            textarea.value = suggestion;
+
+            const container = document.getElementById('ai-suggestions');
+            const list = document.getElementById('suggestions-list');
+
+            // Clear suggestions after selection so the user cannot pick another
+            list.innerHTML = '';
+            container.classList.add('hidden');
+        }
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
 
     </script>
 

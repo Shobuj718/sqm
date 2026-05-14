@@ -110,11 +110,11 @@
                             </button>
                         </div>
                         <div id="messages-container" class="px-6 py-4 space-y-4 max-h-96 overflow-y-auto">
-                            @forelse($ticket->messages()->orderBy('created_at', 'asc')->get() as $message)
+                            @forelse($ticket->messages()->with('user')->orderBy('created_at', 'asc')->get() as $message)
                             <div class="flex {{ $message->message_type === 'customer' ? 'justify-start' : ($message->message_type === 'agent' ? 'justify-end' : 'justify-center') }}" data-message-id="{{ $message->id }}">
                                 <div class="max-w-xs lg:max-w-md {{ $message->message_type === 'customer' ? ($message->is_read ? 'bg-gray-100 dark:bg-gray-700' : 'bg-yellow-50 dark:bg-yellow-900/30 border-l-4 border-yellow-500') : ($message->message_type === 'agent' ? 'bg-blue-100 dark:bg-blue-900' : 'bg-yellow-100 dark:bg-yellow-900') }} rounded-lg px-4 py-2">
                                     <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                                        {{ $message->message_type === 'customer' ? '👤 Customer' : ($message->message_type === 'agent' ? '👨‍💼 Agent' : '⚙️ System') }}
+                                        {{ $message->message_type === 'customer' ? '👤 Customer' : ($message->message_type === 'agent' ? ('👨‍💼 ' . ($message->user?->name ?? 'Agent')) : '⚙️ System') }}
                                         @if($message->channel)
                                         • {{ ucfirst($message->channel) }}
                                         @endif
@@ -143,7 +143,12 @@
                             @csrf
                             @method('PUT')
                             <div>
-                                <label for="agent_message" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Your Message</label>
+                                <div class="flex items-center justify-between mb-2">
+                                    <label for="agent_message" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Your Message</label>
+                                    <button type="button" id="replay-suggest-btn" onclick="getAISuggestions({{ $ticket->id }})" class="px-3 py-1 text-xs bg-purple-600 text-white rounded-md hover:bg-purple-700 font-medium">
+                                        🤖 Replay Suggest
+                                    </button>
+                                </div>
                                 <textarea
                                     id="agent_message"
                                     name="agent_message"
@@ -155,6 +160,12 @@
                                 @error('agent_message')
                                 <p class="mt-2 text-sm text-red-600 dark:text-red-400">{{ $message }}</p>
                                 @enderror
+
+                                <!-- AI Suggestions Container -->
+                                <div id="ai-suggestions" class="mt-3 hidden">
+                                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">AI Suggestions:</p>
+                                    <div id="suggestions-list" class="space-y-2"></div>
+                                </div>
                             </div>
                             <button type="submit" class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium text-sm">Send Reply</button>
                         </form>
@@ -382,6 +393,79 @@
             } catch (error) {
                 console.error('Error marking messages as read:', error);
             }
+        }
+
+        // Get AI suggestions for reply
+        async function getAISuggestions(ticketId) {
+            const btn = document.getElementById('replay-suggest-btn');
+            const originalText = btn.innerHTML;
+
+            // Show loading state
+            btn.innerHTML = '⏳ Generating...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch(`/tickets/${ticketId}/ai-suggestions`, {
+                    method: 'GET',
+                    headers: {
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    }
+                });
+
+                const data = await response.json();
+                console.log('AI suggestions response:', data);
+
+                if (data.success) {
+                    displayAISuggestions(data.suggestions);
+                } else {
+                    alert('Failed to get AI suggestions: ' + (data.message || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error getting AI suggestions:', error);
+                alert('Error getting AI suggestions. Please try again.');
+            } finally {
+                // Reset button
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        // Display AI suggestions
+        function displayAISuggestions(suggestions) {
+            const container = document.getElementById('ai-suggestions');
+            const list = document.getElementById('suggestions-list');
+
+            list.innerHTML = '';
+
+            suggestions.forEach((suggestion, index) => {
+                const suggestionEl = document.createElement('div');
+                suggestionEl.className = 'p-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-md cursor-pointer hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors';
+                suggestionEl.onclick = () => selectSuggestion(suggestion);
+
+                suggestionEl.innerHTML = `
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1 text-sm text-gray-900 dark:text-gray-100">
+                            ${escapeHtml(suggestion)}
+                        </div>
+                        <div class="ml-2 text-xs text-purple-600 dark:text-purple-400 font-medium">
+                            Click to use
+                        </div>
+                    </div>
+                `;
+
+                list.appendChild(suggestionEl);
+            });
+
+            container.classList.remove('hidden');
+        }
+
+        // Select a suggestion and put it in the textarea
+        function selectSuggestion(suggestion) {
+            const textarea = document.getElementById('agent_message');
+            textarea.value = suggestion;
+
+            // Hide suggestions after selection
+            document.getElementById('ai-suggestions').classList.add('hidden');
         }
 
         // Poll for new messages every 3 seconds

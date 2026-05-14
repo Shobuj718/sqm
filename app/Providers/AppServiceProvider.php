@@ -16,6 +16,11 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         Schema::defaultStringLength(191);
+
+        // Register OpenAI client
+        $this->app->singleton('openai', function ($app) {
+            return \OpenAI::client(env('OPENAI_API_KEY'));
+        });
     }
 
     /**

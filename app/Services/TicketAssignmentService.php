@@ -20,6 +20,34 @@ class TicketAssignmentService
             return null;
         }
 
+        if (!$ticket->relationLoaded('assignedAgent')) {
+            $ticket->load('assignedAgent');
+        }
+
+        $currentAgent = $ticket->assignedAgent;
+        if ($currentAgent) {
+            $activeCount = $currentAgent->tickets()
+                ->whereIn('status', ['open', 'waiting'])
+                ->count();
+
+            if (!($currentAgent->availability_status !== User::STATUS_ONLINE && $activeCount > 25)) {
+                Log::info('Keeping current ticket assignment for messenger ticket.', [
+                    'ticket_id' => $ticket->id,
+                    'assigned_to' => $currentAgent->id,
+                    'availability_status' => $currentAgent->availability_status,
+                    'active_ticket_count' => $activeCount,
+                ]);
+                return $currentAgent->id;
+            }
+
+            Log::info('Current assigned agent is offline and overloaded, looking for a new assignment.', [
+                'ticket_id' => $ticket->id,
+                'assigned_to' => $currentAgent->id,
+                'availability_status' => $currentAgent->availability_status,
+                'active_ticket_count' => $activeCount,
+            ]);
+        }
+
         $queue = $facebookPage->supportQueues()->first();
 
         if (!$queue) {
@@ -27,7 +55,7 @@ class TicketAssignmentService
                 'ticket_id' => $ticket->id,
                 'facebook_page_id' => $facebookPage->page_id,
             ]);
-            return null;
+            return $currentAgent?->id;
         }
 
         $agent = $queue->users()
@@ -44,7 +72,7 @@ class TicketAssignmentService
                 'ticket_id' => $ticket->id,
                 'support_queue_id' => $queue->id,
             ]);
-            return null;
+            return $currentAgent?->id;
         }
 
         $oldAssignedTo = $ticket->assigned_to;

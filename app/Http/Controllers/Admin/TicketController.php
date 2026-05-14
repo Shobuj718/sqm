@@ -31,16 +31,18 @@ class TicketController extends Controller
                 ->withCount(['messages as unread_messages_count' => function ($query) {
                     $query->where('message_type', 'customer')->where('is_read', false);
                 }])
+                ->withMax('messages', 'created_at')
                 ->where('assigned_to', auth()->user()->id)
                 ->where('status', '!=', 'closed')
-                ->orderBy('created_at', 'desc');
+                ->orderByDesc('messages_max_created_at');
         } else {
             $query = Ticket::with(['facebookPage', 'assignedAgent', 'latestMessage'])
                 ->withCount(['messages as unread_messages_count' => function ($query) {
                     $query->where('message_type', 'customer')->where('is_read', false);
                 }])
+                ->withMax('messages', 'created_at')
                 ->where('status', '!=', 'closed')
-                ->orderBy('created_at', 'desc');
+                ->orderByDesc('messages_max_created_at');
         }
 
         $summaryTotal = (clone $query)->count();
@@ -93,7 +95,7 @@ class TicketController extends Controller
     public function show(Ticket $ticket, Request $request): View|\Illuminate\Http\JsonResponse
     {
         $ticket->load([
-            'messages',
+            'messages.user',
             'facebookPage',
             'assignedAgent',
             'logs',
@@ -120,6 +122,7 @@ class TicketController extends Controller
                     'post_link' => $ticket->facebook_post_id ? 'https://www.facebook.com/' . $ticket->facebook_post_id : null,
                     'summary' => $ticket->summary ?? $ticket->subject ?? $ticket->initial_message,
                     'created_at' => optional($ticket->created_at)->toIso8601String(),
+                    'agent_name' => optional($ticket->assignedAgent)->name,
                     'tags' => $ticket->tags->map(function ($tag) {
                         return [
                             'id' => $tag->id,
@@ -273,7 +276,8 @@ class TicketController extends Controller
                     message: $agentMessage,
                     attachments: $attachments,
                     messageType: 'agent',
-                    channel: 'messenger'
+                    channel: 'messenger',
+                    userId: auth()->id()
                 );
 
                 TicketLogService::logMessageAdded($ticket, 'agent');
@@ -404,6 +408,7 @@ class TicketController extends Controller
             }
 
             $lastMessage = $ticket->messages()
+                ->with('user')
                 ->reorder('id', 'desc')
                 ->first();
 
@@ -418,9 +423,12 @@ class TicketController extends Controller
                     'id' => $lastMessage?->id,
                     'message' => $lastMessage?->message,
                     'message_type' => $lastMessage?->message_type,
+                    'sender_type' => $lastMessage?->message_type,
+                    'user_id' => $lastMessage?->user_id,
                     'created_at' => optional($lastMessage?->created_at)->toDateTimeString(),
                     'facebook_page_name' => $ticket->facebookPage?->page_name,
                     'customer_name' => $ticket->customer_name,
+                    'agent_name' => $lastMessage?->user?->name ?? auth()->user()?->name ?? $ticket->assignedAgent?->name,
                     'attachments' => $lastMessage?->attachments ?? [],
                 ]
             ]);
@@ -805,6 +813,465 @@ class TicketController extends Controller
         $message->markAsRead();
 
         return response()->json(['success' => true, 'message' => 'Message marked as read']);
+    }
+
+    /**
+     * Get AI suggestions for ticket reply.
+     */
+    public function getAISuggestions(Ticket $ticket): JsonResponse
+    {
+        try {
+            // Build conversation history
+            $messages = $ticket->messages()
+                ->with('user')
+                ->orderBy('created_at', 'asc')
+                ->get();
+
+            $conversation = '';
+            foreach ($messages as $message) {
+                $sender = $message->message_type === 'customer' ? 'Customer' :
+                         ($message->user ? $message->user->name : 'Agent');
+                $conversation .= "{$sender}: {$message->message}\n";
+            }
+
+            // Detect conversation language
+            $language = $this->detectConversationLanguage($conversation);
+
+            // Prepare prompt for AI in the conversation language
+            $prompt = $this->buildSuggestionsPrompt($conversation, $language);
+
+            // Get AI suggestions using OpenAI
+            $suggestions = $this->generateAISuggestionsList($prompt);
+
+            return response()->json([
+                'success' => true,
+                'suggestions' => $suggestions
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('AI Suggestions Error', [
+                'ticket_id' => $ticket->id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate AI suggestions: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Generate AI summary for ticket conversation.
+     */
+    public function generateSummary(Ticket $ticket): JsonResponse
+    {
+        try {
+            // Load all messages
+            $messages = $ticket->messages()
+                ->with('user')
+                ->orderBy('created_at', 'asc')
+                ->get();
+
+            if ($messages->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No messages to summarize'
+                ], 400);
+            }
+
+            // Build conversation text
+            $conversationText = '';
+            foreach ($messages as $message) {
+                $sender = $message->message_type === 'customer' ? 'Customer' :
+                         ($message->user ? $message->user->name : 'Agent');
+                $conversationText .= "{$sender}: {$message->message}\n";
+            }
+
+            // Detect conversation language
+            $language = $this->detectConversationLanguage($conversationText);
+
+            // Create prompt for AI in the conversation language
+            $prompt = $this->buildSummaryPrompt($conversationText, $language);
+
+            // Generate summary using AI
+            $summary = $this->generateAISummaryText($prompt);
+
+            return response()->json([
+                'success' => true,
+                'summary' => $summary
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('AI Summary Error', [
+                'ticket_id' => $ticket->id,
+                'error' => $e->getMessage()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate summary: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Detect the language of the conversation.
+     */
+    private function detectConversationLanguage(string $text): string
+    {
+        // Language detection based on character patterns
+        // Bengali: \x{0980}-\x{09FF}
+        // Arabic: \x{0600}-\x{06FF}
+        // Hebrew: \x{0590}-\x{05FF}
+        // Russian/Cyrillic: \x{0400}-\x{04FF}
+        // Chinese: \x{4E00}-\x{9FFF}
+        // Japanese: \x{3040}-\x{309F} (Hiragana), \x{30A0}-\x{30FF} (Katakana)
+        // Korean: \x{AC00}-\x{D7AF}
+
+        if (preg_match('/[\x{0980}-\x{09FF}]/u', $text)) {
+            return 'Bengali';
+        }
+        if (preg_match('/[\x{0600}-\x{06FF}]/u', $text)) {
+            return 'Arabic';
+        }
+        if (preg_match('/[\x{0590}-\x{05FF}]/u', $text)) {
+            return 'Hebrew';
+        }
+        if (preg_match('/[\x{0400}-\x{04FF}]/u', $text)) {
+            return 'Russian';
+        }
+        if (preg_match('/[\x{4E00}-\x{9FFF}]/u', $text)) {
+            return 'Chinese';
+        }
+        if (preg_match('/[\x{3040}-\x{309F}\x{30A0}-\x{30FF}]/u', $text)) {
+            return 'Japanese';
+        }
+        if (preg_match('/[\x{AC00}-\x{D7AF}]/u', $text)) {
+            return 'Korean';
+        }
+        if (preg_match('/[éèêëàâäùûüôöçñÉÈÊËÀÂÄÙÛÜÔÖÇÑ]/u', $text)) {
+            return 'French';
+        }
+        if (preg_match('/[äöüßÄÖÜ]/u', $text)) {
+            return 'German';
+        }
+        if (preg_match('/[áéíóúñ¿¡ÁÉÍÓÚÑ]/u', $text)) {
+            return 'Spanish';
+        }
+        if (preg_match('/[àèìòùÀÈÌÒÙ]/u', $text)) {
+            return 'Italian';
+        }
+        if (preg_match('/[ãõçÃÕÇ]/u', $text)) {
+            return 'Portuguese';
+        }
+
+        return 'English';
+    }
+
+    /**
+     * Build a language-specific prompt for suggestions.
+     */
+    private function buildSuggestionsPrompt(string $conversation, string $language): string
+    {
+        $prompts = [
+            'Bengali' => "আপনি একজন গ্রাহক সহায়তা এজেন্ট। নিম্নলিখিত কথোপকথন বিশ্লেষণ করুন এবং কেবল পরবর্তী এজেন্ট উত্তরের জন্য 2টি সংক্ষিপ্ত, পেশাদার পরামর্শ দিন। প্রতিটি পরামর্শ এক বা দুই বাক্যের বেশি নয় এবং গ্রাহকের উদ্বেগ সরাসরি সম্বোধন করুন। কোন কাস্টমার টেক্সট বা কথোপকথন লেবেল যোগ করবেন না।\n\nকথোপকথন:\n{$conversation}\n\nপরবর্তী এজেন্ট উত্তরের জন্য 2টি সংক্ষিপ্ত পরামর্শ দিন:",
+            'Arabic' => "أنت وكيل دعم العملاء. قم بتحليل المحادثة التالية وقدم فقط اقتراحين قصيرين ومهنيين للرد التالي من الوكيل. يجب ألا تزيد كل اقتراح عن جملة أو جملتين وأن تعالج مخاوف العميل مباشرة. لا تدرج نص العميل أو تسميات المحادثة.\n\nالمحادثة:\n{$conversation}\n\nقدم اقتراحين قصيرين لرد الوكيل التالي:",
+            'Hebrew' => "אתה סוכן תמיכה של הלקוח. בהתאם לשיחה הבאה, ספק 2-3 הצעות תגובה מועילות ומקצועיות. כל הצעה צריכה להיות תמציתית ולהתייחס ישירות לדאגות הלקוח.\n\nשיחה:\n{$conversation}\n\nספק 2-3 הצעות תגובה:",
+            'Russian' => "Вы являетесь агентом по поддержке клиентов. На основе следующего разговора предоставьте 2-3 полезных и профессиональных предложения ответов. Каждое предложение должно быть кратким и напрямую решать проблемы клиента.\n\nРазговор:\n{$conversation}\n\nПредложите 2-3 варианта ответов:",
+            'Chinese' => "你是客户支持代理。根据以下对话，提供2-3条有用且专业的回复建议。每条建议应简明扼要，直接解决客户的疑虑。\n\n对话：\n{$conversation}\n\n提供2-3条回复建议：",
+            'Japanese' => "あなたはカスタマーサポートエージェントです。以下の会話に基づいて、2〜3つの有用で専門的な返信提案を提供してください。各提案は簡潔で、顧客の懸念に直接対応する必要があります。\n\n会話：\n{$conversation}\n\n返信の提案を2〜3つ提供してください:",
+            'Korean' => "고객 지원 상담원입니다. 다음 대화를 바탕으로 2-3개의 유용하고 전문적인 회신 제안을 제공하십시오. 각 제안은 간결해야 하며 고객의 우려사항을 직접 해결해야 합니다.\n\n대화:\n{$conversation}\n\n2-3개의 회신 제안을 제공하십시오:",
+            'French' => "Vous êtes un agent du service clientèle. En fonction de la conversation suivante, fournissez 2-3 suggestions de réponse utiles et professionnelles. Chaque suggestion doit être concise et aborder directement les préoccupations du client.\n\nConversation:\n{$conversation}\n\nFournissez 2-3 suggestions de réponse:",
+            'German' => "Sie sind ein Kundensupportmitarbeiter. Basierend auf dem folgenden Gespräch geben Sie 2-3 hilfreiche und professionelle Antwortvorschläge ab. Jeder Vorschlag sollte prägnant sein und die Bedenken des Kunden direkt ansprechen.\n\nGespräch:\n{$conversation}\n\nMachen Sie 2-3 Antwortvorschläge:",
+            'Spanish' => "Eres un agente de atención al cliente. Basado en la siguiente conversación, proporciona 2-3 sugerencias de respuesta útiles y profesionales. Cada sugerencia debe ser concisa y abordar directamente las preocupaciones del cliente.\n\nConversación:\n{$conversation}\n\nProporciona 2-3 sugerencias de respuesta:",
+            'Italian' => "Sei un agente di supporto clienti. Sulla base della seguente conversazione, fornisci 2-3 suggerimenti di risposta utili e professionali. Ogni suggerimento deve essere conciso e affrontare direttamente le preoccupazioni del cliente.\n\nConversazione:\n{$conversation}\n\nFornisci 2-3 suggerimenti di risposta:",
+            'Portuguese' => "Você é um agente de suporte ao cliente. Com base na conversa a seguir, forneça 2-3 sugestões de resposta úteis e profissionais. Cada sugestão deve ser concisa e abordar diretamente as preocupações do cliente.\n\nConversa:\n{$conversation}\n\nFornça 2-3 sugestões de resposta:",
+            'English' => "You are a customer support agent. Analyze the previous conversation and suggest 2 very short, professional replies for the next agent message. Each reply should be one sentence or less and directly address the customer's concern. Do not repeat the customer text or conversation labels.\n\nConversation:\n{$conversation}\n\nProvide 2 short suggested agent replies for the next reply:",
+        ];
+
+        return $prompts[$language] ?? $prompts['English'];
+    }
+
+    /**
+     * Build a language-specific prompt for summary.
+     */
+    private function buildSummaryPrompt(string $conversation, string $language): string
+    {
+        $prompts = [
+            'Bengali' => "নিম্নলিখিত গ্রাহক সহায়তা কথোপকথন বিশ্লেষণ করুন এবং একটি সংক্ষিপ্ত, পেশাদার সারসংক্ষেপ প্রদান করুন (সর্বাধিক 2-3 বাক্য)। মূল সমস্যা, গ্রাহকের উদ্বেগ এবং সমাধানের অবস্থার উপর ফোকাস করুন।\n\nকথোপকথন:\n{$conversation}\n\nসারসংক্ষেপ:",
+            'Arabic' => "حلل محادثة دعم العملاء التالية وقدم ملخصاً موجزاً واحترافياً (بحد أقصى 2-3 جمل). ركز على المشاكل الرئيسية ومخاوف العميل وحالة الحل.\n\nالمحادثة:\n{$conversation}\n\nالملخص:",
+            'Hebrew' => "נתח את שיחת התמיכה של הלקוח הבאה וספק סיכום תמציתי והמקצועי (מקסימום 2-3 משפטים). התמקד בנושאים מרכזיים, דאגות הלקוח ומצב הפתרון.\n\nשיחה:\n{$conversation}\n\nסיכום:",
+            'Russian' => "Проанализируйте следующий диалог поддержки клиентов и предоставьте краткое профессиональное резюме (максимум 2-3 предложения). Сосредоточьтесь на ключевых проблемах, обеспокоенности клиента и статусе разрешения.\n\nРазговор:\n{$conversation}\n\nРезюме:",
+            'Chinese' => "分析以下客户支持对话，并提供简洁专业的摘要（最多2-3句话）。重点关注关键问题、客户的疑虑和解决状态。\n\n对话：\n{$conversation}\n\n摘要：",
+            'Japanese' => "以下のカスタマーサポート会話を分析し、簡潔で専門的な要約を提供してください（最大2-3文）。重要な問題、顧客の懸念、および解決状況に焦点を当ててください。\n\n会話：\n{$conversation}\n\n要約：",
+            'Korean' => "다음 고객 지원 대화를 분석하고 간결한 전문적 요약을 제공하십시오 (최대 2-3개 문장). 주요 문제, 고객의 우려사항 및 해결 상태에 중점을 두십시오.\n\n대화:\n{$conversation}\n\n요약:",
+            'French' => "Analysez la conversation de support client suivante et fournissez un résumé concis et professionnel (maximum 2-3 phrases). Concentrez-vous sur les problèmes clés, les préoccupations des clients et l'état de la résolution.\n\nConversation:\n{$conversation}\n\nRésumé:",
+            'German' => "Analysieren Sie das folgende Kundensupportgespräch und geben Sie eine prägnante, professionelle Zusammenfassung (maximal 2-3 Sätze) ab. Konzentrieren Sie sich auf Schlüsselprobleme, Kundenbedenken und Lösungsstatus.\n\nGespräch:\n{$conversation}\n\nZusammenfassung:",
+            'Spanish' => "Analiza la siguiente conversación de soporte al cliente y proporciona un resumen conciso y profesional (máximo 2-3 oraciones). Enfócate en los problemas clave, las preocupaciones del cliente y el estado de la resolución.\n\nConversación:\n{$conversation}\n\nResumen:",
+            'Italian' => "Analizza la seguente conversazione di supporto ai clienti e fornisci un riassunto conciso e professionale (massimo 2-3 frasi). Concentrati sui problemi chiave, sulle preoccupazioni dei clienti e sullo stato della risoluzione.\n\nConversazione:\n{$conversation}\n\nRiassunto:",
+            'Portuguese' => "Analise a conversa de suporte ao cliente a seguir e forneça um resumo conciso e profissional (máximo 2-3 frases). Concentre-se nos problemas-chave, nas preocupações do cliente e no status da resolução.\n\nConversa:\n{$conversation}\n\nResumo:",
+            'English' => "Analyze the following customer support conversation and provide a concise, professional summary (2-3 sentences maximum). Focus on the key issues, customer concerns, and resolution status.\n\nConversation:\n{$conversation}\n\nSummary:",
+        ];
+
+        return $prompts[$language] ?? $prompts['English'];
+    }
+
+    /**
+     * Resolve the AI provider to use.
+     */
+    private function resolveAIProvider(): string
+    {
+        $provider = strtolower(trim(env('AI_PROVIDER', 'openai')));
+        $hasOpenAIKey = !empty(env('OPENAI_API_KEY'));
+        $hasHuggingFaceToken = !empty(env('HUGGING_FACE_TOKEN'));
+
+        if ($provider === 'huggingface') {
+            if ($hasHuggingFaceToken) {
+                return 'huggingface';
+            }
+            if ($hasOpenAIKey) {
+                return 'openai';
+            }
+            throw new \Exception('No AI provider is properly configured. Set HUGGING_FACE_TOKEN or OPENAI_API_KEY.');
+        }
+
+        if ($provider === 'openai') {
+            if ($hasOpenAIKey) {
+                return 'openai';
+            }
+            if ($hasHuggingFaceToken) {
+                return 'huggingface';
+            }
+            throw new \Exception('No AI provider is properly configured. Set OPENAI_API_KEY or HUGGING_FACE_TOKEN.');
+        }
+
+        if ($provider === 'auto') {
+            if ($hasOpenAIKey) {
+                return 'openai';
+            }
+            if ($hasHuggingFaceToken) {
+                return 'huggingface';
+            }
+            throw new \Exception('No AI provider is properly configured. Set OPENAI_API_KEY or HUGGING_FACE_TOKEN.');
+        }
+
+        throw new \Exception('Unsupported AI_PROVIDER value: ' . $provider);
+    }
+
+    /**
+     * Generate summary text using OpenAI or Hugging Face.
+     */
+    private function generateAISummaryText(string $prompt): string
+    {
+        $provider = $this->resolveAIProvider();
+
+        if ($provider === 'huggingface') {
+            return $this->generateHuggingFaceSummary($prompt);
+        }
+
+        return $this->generateOpenAISummary($prompt);
+    }
+
+    /**
+     * Generate summary using OpenAI.
+     */
+    private function generateOpenAISummary(string $prompt): string
+    {
+        $apiKey = env('OPENAI_API_KEY');
+
+        if (!$apiKey) {
+            throw new \Exception('OpenAI API key not configured.');
+        }
+
+        $client = app('openai');
+
+        $response = $client->chat()->create([
+            'model' => 'gpt-3.5-turbo',
+            'messages' => [
+                [
+                    'role' => 'user',
+                    'content' => $prompt
+                ]
+            ],
+            'max_tokens' => 200,
+            'temperature' => 0.5,
+        ]);
+
+        return trim($response->choices[0]->message->content ?? '');
+    }
+
+    /**
+     * Generate summary using Hugging Face.
+     */
+    private function generateHuggingFaceSummary(string $prompt): string
+    {
+        $apiKey = env('HUGGING_FACE_TOKEN');
+
+        if (!$apiKey) {
+            throw new \Exception('Hugging Face token not configured.');
+        }
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $apiKey,
+        ])->post('https://api-inference.huggingface.co/models/gpt2', [
+            'inputs' => $prompt,
+            'parameters' => [
+                'max_length' => 150,
+                'temperature' => 0.5,
+                'do_sample' => true,
+            ]
+        ]);
+
+        if ($response->failed()) {
+            throw new \Exception('Hugging Face API request failed: ' . $response->body());
+        }
+
+        $body = $response->json();
+
+        if (!isset($body[0]['generated_text'])) {
+            throw new \Exception('Invalid response from Hugging Face API');
+        }
+
+        $content = $body[0]['generated_text'] ?? '';
+
+        // Remove the original prompt from the response
+        $content = str_replace($prompt, '', $content);
+
+        return trim($content);
+    }
+
+    /**
+     * Generate AI suggestions using OpenAI or Hugging Face.
+     */
+    private function generateAISuggestionsList(string $prompt): array
+    {
+        $provider = $this->resolveAIProvider();
+
+        if ($provider === 'huggingface') {
+            return $this->generateHuggingFaceSuggestions($prompt);
+        }
+
+        return $this->generateOpenAISuggestions($prompt);
+    }
+
+    /**
+     * Generate AI suggestions using OpenAI.
+     */
+    private function generateOpenAISuggestions(string $prompt): array
+    {
+        $apiKey = env('OPENAI_API_KEY');
+
+        if (!$apiKey) {
+            throw new \Exception('OpenAI API key not configured. Please set OPENAI_API_KEY in your .env file.');
+        }
+
+        $client = app('openai');
+
+        $response = $client->chat()->create([
+            'model' => 'gpt-3.5-turbo',
+            'messages' => [
+                [
+                    'role' => 'user',
+                    'content' => $prompt
+                ]
+            ],
+            'max_tokens' => 300,
+            'temperature' => 0.7,
+        ]);
+
+        $content = $response->choices[0]->message->content ?? '';
+
+        return $this->parseAISuggestions($content);
+    }
+
+    /**
+     * Generate AI suggestions using Hugging Face.
+     */
+    private function generateHuggingFaceSuggestions(string $prompt): array
+    {
+        $apiKey = env('HUGGING_FACE_TOKEN');
+
+        if (!$apiKey) {
+            throw new \Exception('Hugging Face token not configured. Please set HUGGING_FACE_TOKEN in your .env file.');
+        }
+
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $apiKey,
+        ])->post('https://api-inference.huggingface.co/models/gpt2', [
+            'inputs' => $prompt,
+            'parameters' => [
+                'max_length' => 200,
+                'temperature' => 0.7,
+                'do_sample' => true,
+                'num_return_sequences' => 3,
+            ]
+        ]);
+
+        if ($response->failed()) {
+            throw new \Exception('Hugging Face API request failed: ' . $response->body());
+        }
+
+        $body = $response->json();
+
+        if (!isset($body[0]['generated_text'])) {
+            throw new \Exception('Invalid response from Hugging Face API');
+        }
+
+        $content = $body[0]['generated_text'] ?? '';
+
+        // Remove the original prompt from the response
+        $content = str_replace($prompt, '', $content);
+        $content = trim($content);
+
+        return $this->parseAISuggestions($content);
+    }
+
+    /**
+     * Parse AI response into suggestions array.
+     */
+    private function parseAISuggestions(string $content): array
+    {
+        $suggestions = [];
+        $lines = explode("\n", trim($content));
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            // Look for numbered suggestions or bullet points
+            if (preg_match('/^\d+\.\s*(.+)$/', $line, $matches) ||
+                preg_match('/^[-•*]\s*(.+)$/', $line, $matches)) {
+                $suggestions[] = trim($matches[1]);
+            } elseif (!empty($line) && !preg_match('/^(suggestion|reply|response)/i', $line)) {
+                // If it's a plain line that looks like a suggestion
+                if (strlen($line) > 10 && count($suggestions) < 3) {
+                    $suggestions[] = $line;
+                }
+            }
+        }
+
+        // If parsing failed, split by double newlines or just return the whole content as one suggestion
+        if (empty($suggestions)) {
+            $parts = preg_split('/\n\s*\n/', $content);
+            foreach ($parts as $part) {
+                $part = trim($part);
+                if (!empty($part) && strlen($part) > 10) {
+                    $suggestions[] = $part;
+                }
+            }
+        }
+
+        // Ensure we have at least 2 suggestions, max 3
+        $suggestions = array_slice($suggestions, 0, 3);
+
+        if (count($suggestions) < 2) {
+            $suggestions = array_merge($suggestions, [
+                "Thank you for your message. I'm here to help resolve this issue.",
+                "I understand your concern. Let me assist you with this."
+            ]);
+            $suggestions = array_slice($suggestions, 0, 3);
+        }
+
+        return $suggestions;
     }
 }
 

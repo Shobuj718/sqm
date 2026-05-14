@@ -86,7 +86,7 @@
     </div>
 
     @php
-        $messages = $ticket->messages()->orderBy('created_at','asc')->get();
+        $messages = $ticket->messages()->with('user')->orderBy('created_at','asc')->get();
         $fileAttachments = [];
         foreach ($messages as $message) {
             if (empty($message->attachments) || !is_array($message->attachments)) {
@@ -103,7 +103,7 @@
                     'url' => $url,
                     'type' => $type,
                     'filename' => $filename,
-                    'sender' => $message->message_type === 'agent' ? 'Agent' : ($message->message_type === 'customer' ? ($ticket->customer_name ?: 'Customer') : ucfirst($message->message_type)),
+                    'sender' => $message->message_type === 'agent' ? ($message->user?->name ?: 'Agent') : ($message->message_type === 'customer' ? ($ticket->customer_name ?: 'Customer') : ucfirst($message->message_type)),
                     'created_at' => $message->created_at,
                 ];
             }
@@ -122,19 +122,22 @@
             @php
                 $messageGapThreshold = 30; // minutes
                 $previousMessage = null;
+                $previousAgentId = null;
             @endphp
 
-            @foreach($ticket->messages()->orderBy('created_at','asc')->get() as $message)
+            @foreach($ticket->messages()->with('user')->orderBy('created_at','asc')->get() as $message)
                 @php
                     $showMeta = false;
                     $showTime = false;
+                    $currentAgentId = $message->message_type === 'agent' ? $message->user_id : null;
 
                     if (!$previousMessage) {
                         $showMeta = true;
                         $showTime = true;
                     } else {
                         $showMeta = $message->message_type !== $previousMessage->message_type ||
-                            $message->created_at->diffInMinutes($previousMessage->created_at) > $messageGapThreshold;
+                            $message->created_at->diffInMinutes($previousMessage->created_at) > $messageGapThreshold ||
+                            ($message->message_type === 'agent' && $currentAgentId !== $previousAgentId);
                         $showTime = $message->created_at->diffInMinutes($previousMessage->created_at) > 5;
                     }
                 @endphp
@@ -142,13 +145,6 @@
                 @if($message->message_type === 'agent')
                     <div class="flex justify-end" data-message-id="{{ $message->id }}" data-message-type="agent" data-created-at="{{ $message->created_at->toDateTimeString() }}">
                         <div class="flex flex-col gap-1 max-w-[70%]">
-                            @if($showMeta)
-                                <div class="text-xs font-semibold mb-1.5 opacity-90 flex justify-end items-center gap-2 text-white">
-                                    <span class="rounded-full bg-white/10 px-2 py-1 text-white">
-                                        Replying as {{ $ticket->facebookPage?->page_name ?? 'Agent' }}
-                                    </span>
-                                </div>
-                            @endif
                             <div class="px-4 py-2.5 rounded-2xl rounded-br-md bg-gradient-to-r from-[#1877f2] to-[#1b74e4] text-white shadow-sm">
                                 <p class="text-sm leading-relaxed break-words">
                                     {{ $message->message }}
@@ -171,9 +167,14 @@
                                     @endforeach
                                 @endif
                             </div>
+                            @if($showMeta)
+                                <div class="text-xs flex justify-end items-center gap-2 mt-1">
+                                    <span class="text-gray-400 dark:text-gray-500">{{ $message->user?->name ?? 'Agent' }}</span>
+                                </div>
+                            @endif
                             @if($showTime)
                                 <span class="text-xs text-gray-200 text-right px-2">
-                                    {{ $message->created_at->format('h:i A') }}
+                                   {{ $message->created_at->format('h:i A') }}
                                 </span>
                             @endif
                         </div>
@@ -227,6 +228,7 @@
                 @endif
 
                 @php $previousMessage = $message; @endphp
+                @php $previousAgentId = $message->message_type === 'agent' ? $message->user_id : $previousAgentId; @endphp
             @endforeach
 
         </div>
@@ -281,6 +283,16 @@
 
                     </button>
 
+                    <button
+                        type="button"
+                        id="replay-suggest-btn"
+                        onclick="getAISuggestions({{ $ticket->id }})"
+                        class="h-10 w-10 rounded-full bg-purple-100 dark:bg-purple-900 hover:bg-purple-200 dark:hover:bg-purple-800 transition flex items-center justify-center text-purple-600 dark:text-purple-400"
+                        title="Get AI suggestions"
+                    >
+                        🤖
+                    </button>
+
                 </div>
 
                 {{-- INPUT --}}
@@ -315,6 +327,12 @@
                     </div>
 
                     <div id="attachment-preview" class="mt-2 text-xs text-gray-500 dark:text-gray-400"></div>
+
+                    <!-- AI Suggestions Container -->
+                    <div id="ai-suggestions" class="mt-2 hidden">
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">AI Suggestions:</p>
+                        <div id="suggestions-list" class="space-y-1"></div>
+                    </div>
                 </div>
 
             </form>

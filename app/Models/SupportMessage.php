@@ -9,6 +9,7 @@ class SupportMessage extends Model
 {
     protected $fillable = [
         'ticket_id',
+        'user_id',
         'facebook_message_id',
         'sender_facebook_id',
         'message',
@@ -33,6 +34,14 @@ class SupportMessage extends Model
     public function ticket(): BelongsTo
     {
         return $this->belongsTo(Ticket::class);
+    }
+
+    /**
+     * Get the user (agent) who sent this message.
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 
     /**
