@@ -9,7 +9,7 @@
                         @if($ticket->channel === 'messenger')
                             <i class="fab fa-facebook-messenger fa-lg"></i>
                         @elseif($ticket->channel === 'comment')
-                            <i class="fab fa-facebook fa-lg"></i>
+                            <i class="fas fa-comment fa-lg"></i>
                         @else
                             {{ strtoupper(substr($ticket->customer_name ?? 'U',0,1)) }}
                         @endif
@@ -44,20 +44,38 @@
                             </a>
                         @endif
                     </div>
+
+                    <div class="flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-gray-400 mt-2">
+                        <span class="font-semibold text-gray-700 dark:text-gray-200">Ticket:</span>
+                        <span>#{{ $ticket->id }}</span>
+                        <span class="font-semibold text-gray-700 dark:text-gray-200">Created:</span>
+                        <span>{{ $ticket->created_at?->format('M d, Y h:i A') }}</span>
+                    </div>
                 </div>
             </div>
 
-            <div class="grid gap-2 sm:w-[320px]">
-                <button
-                    id="show-files-btn"
-                    type="button"
-                    class="w-full rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm font-semibold text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
-                    onclick="showFilesModal()"
-                >
-                    📎 Attachments
-                </button>
+            <div class="sm:w-[320px]">
+                <div class="flex gap-2">
+                    <button
+                        id="show-files-btn"
+                        type="button"
+                        class="flex-1 h-10 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 text-sm font-semibold text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                        onclick="showFilesPanel()"
+                    >
+                        📎 Attachments
+                    </button>
 
-                <div class="grid gap-2 sm:grid-cols-3">
+                    <button
+                        id="show-logs-btn"
+                        type="button"
+                        class="flex-1 h-10 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 text-sm font-semibold text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                        onclick="showLogsPanel()"
+                    >
+                        📝 Events
+                    </button>
+                </div>
+
+                <div class="mt-2 grid gap-2 sm:grid-cols-3">
                     <select id="ticket-status" class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-500 transition">
                         <option value="open" {{ $ticket->status === 'open' ? 'selected' : '' }}>Open</option>
                         <option value="waiting" {{ $ticket->status === 'waiting' ? 'selected' : '' }}>Waiting</option>
@@ -341,18 +359,18 @@
 
     </div>
 
-    {{-- FILES MODAL --}}
-    <div id="files-modal" class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
-            <div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+    {{-- FILES PANEL (shows in chat area) --}}
+    <div id="files-panel" class="hidden flex-1 overflow-y-auto px-4 py-6">
+        <div class="max-w-2xl mx-auto">
+            <div class="flex items-center justify-between mb-4">
                 <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Conversation Files</h3>
-                <button type="button" onclick="closeFilesModal()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                <button type="button" onclick="closeFilesPanel()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                     </svg>
                 </button>
             </div>
-            <div class="p-4 overflow-y-auto max-h-[60vh]">
+            <div class="p-0 overflow-y-auto">
                 @if(count($fileAttachments) > 0)
                     <div class="space-y-4">
                         @foreach($fileAttachments as $file)
@@ -389,6 +407,52 @@
                         <div class="text-gray-400 text-4xl mb-4">📎</div>
                         <p class="text-gray-500 dark:text-gray-400">No files attached to this conversation yet.</p>
                     </div>
+                @endif
+            </div>
+        </div>
+    </div>
+
+    {{-- LOGS PANEL (shows in chat area) --}}
+    <div id="logs-panel" class="hidden flex-1 overflow-y-auto px-4 py-6">
+        <div class="max-w-3xl mx-auto">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Ticket Events</h3>
+                <button type="button" onclick="closeLogsPanel()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div class="p-0 overflow-y-auto">
+                @php $logs = $ticket->logs()->orderBy('created_at','desc')->get(); @endphp
+                @if($logs->count() > 0)
+                    <div class="space-y-3">
+                        @foreach($logs as $log)
+                            <div class="rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                                <div class="flex items-start gap-3">
+                                    <div class="flex-shrink-0">
+                                        <div class="flex items-center justify-center h-8 w-8 rounded-full bg-gray-100 dark:bg-gray-700">
+                                            <span class="text-sm">{{ strtoupper(substr($log->action,0,1)) }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="min-w-0">
+                                        <div class="flex items-baseline gap-2">
+                                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $log->formatted_action }}</p>
+                                            <p class="text-xs text-gray-500 dark:text-gray-400">{{ $log->created_at->format('M d, Y H:i') }}</p>
+                                        </div>
+                                        @if($log->description)
+                                            <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">{{ $log->description }}</p>
+                                        @endif
+                                        @if($log->user)
+                                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">by {{ $log->user->name }}</p>
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                @else
+                    <div class="text-center py-8 text-gray-500 dark:text-gray-400">No events logged for this ticket.</div>
                 @endif
             </div>
         </div>

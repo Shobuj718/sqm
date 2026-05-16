@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AgentNote;
 use App\Models\Tag;
 use App\Models\Ticket;
 use App\Models\User;
@@ -108,6 +109,9 @@ class TicketController extends Controller
 
         if ($request->ajax()) {
 
+            // Get current agent's note for this view
+            $agentNote = auth()->user()->notes()->first();
+
             return response()->json([
                 'html' => view(
                     'admin.tickets.chat-area',
@@ -127,9 +131,12 @@ class TicketController extends Controller
                         return [
                             'id' => $tag->id,
                             'name' => $tag->name,
+                            'category' => $tag->category ?? null,
                         ];
                     })->toArray(),
-                    'available_tags' => Tag::orderBy('name')->get(['id', 'name'])->toArray(),
+                    'available_tags' => Tag::orderBy('name')->get(['id', 'name', 'category'])->toArray(),
+                    'agent_note' => $agentNote ? $agentNote->content : '',
+                    'agent_note_id' => $agentNote ? $agentNote->id : null,
                 ],
             ]);
 
@@ -154,6 +161,8 @@ class TicketController extends Controller
                 'summary' => 'nullable|string',
                 'tags' => 'sometimes|array',
                 'tags.*' => 'integer|exists:labels,id',
+                'business_tag' => 'nullable|integer|exists:labels,id',
+                'sentiment_tag' => 'nullable|integer|exists:labels,id',
                 'agent_message' => 'nullable|string',
                 'attachments.*' => 'file|max:10240',
             ]);
@@ -239,7 +248,43 @@ class TicketController extends Controller
                 });
             }
 
-            if (array_key_exists('tags', $validated)) {
+            // Handle new category-based tags if provided
+            if (array_key_exists('business_tag', $validated) || array_key_exists('sentiment_tag', $validated)) {
+                // Load current tags
+                $ticket->load('tags');
+
+                // Keep tags that are not business/sentiment
+                $tagsToKeep = $ticket->tags->filter(function ($t) {
+                    $cat = strtolower((string)($t->category ?? ''));
+                    return !in_array($cat, ['business', 'sentiment']);
+                })->pluck('id')->toArray();
+
+                // Validate and add business tag if provided
+                $businessId = $validated['business_tag'] ?? null;
+                if ($businessId) {
+                    $businessTag = Tag::find($businessId);
+                    if (!$businessTag || strtolower((string)($businessTag->category ?? '')) !== 'business') {
+                        return response()->json(['status' => 'error', 'message' => 'Invalid business tag selected'], 422);
+                    }
+                    $tagsToKeep[] = $businessTag->id;
+                }
+
+                // Validate and add sentiment tag if provided
+                $sentimentId = $validated['sentiment_tag'] ?? null;
+                if ($sentimentId) {
+                    $sentimentTag = Tag::find($sentimentId);
+                    if (!$sentimentTag || strtolower((string)($sentimentTag->category ?? '')) !== 'sentiment') {
+                        return response()->json(['status' => 'error', 'message' => 'Invalid sentiment tag selected'], 422);
+                    }
+                    $tagsToKeep[] = $sentimentTag->id;
+                }
+
+                // Ensure unique IDs
+                $tagsToKeep = array_values(array_unique($tagsToKeep));
+
+                $ticket->tags()->sync($tagsToKeep);
+            } elseif (array_key_exists('tags', $validated)) {
+                // Legacy behavior: sync flat tags array
                 $ticket->tags()->sync($validated['tags'] ?? []);
             }
 
@@ -1272,6 +1317,33 @@ class TicketController extends Controller
         }
 
         return $suggestions;
+    }
+
+    /**
+     * Save or update agent note
+     */
+    public function saveAgentNote(Request $request): JsonResponse
+    {
+        $request->validate([
+            'note' => 'required|string|max:5000',
+        ]);
+
+        $user = auth()->user();
+        $note = $user->notes()->first();
+
+        if ($note) {
+            // Update existing note
+            $note->update(['content' => $request->note]);
+        } else {
+            // Create new note
+            $note = $user->notes()->create(['content' => $request->note]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'note_id' => $note->id,
+            'message' => 'Note saved successfully',
+        ]);
     }
 }
 

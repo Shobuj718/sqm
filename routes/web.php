@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\FacebookAuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\RolePermissionController;
+use App\Http\Controllers\Admin\PerformanceReportController;
 use App\Http\Controllers\Admin\SupportQueueController;
 use App\Http\Controllers\Admin\UserController;
 
@@ -71,6 +72,19 @@ Route::middleware(['auth'])->group(function () {
     });
 
     // Ticket Management
+    Route::get('/reports/agent-performance', [PerformanceReportController::class, 'agentPerformance'])
+        ->middleware('role:admin|manager')
+        ->name('reports.agent-performance');
+    Route::get('/api/reports/agent-performance', [PerformanceReportController::class, 'agentPerformance'])
+        ->middleware('role:admin|manager')
+        ->name('reports.agent-performance.api');
+    Route::get('/reports/page-performance', [PerformanceReportController::class, 'pagePerformance'])
+        ->middleware('role:admin|manager')
+        ->name('reports.page-performance');
+    Route::get('/api/reports/page-performance', [PerformanceReportController::class, 'pagePerformance'])
+        ->middleware('role:admin|manager')
+        ->name('reports.page-performance.api');
+
      Route::get('/all-tickets', [\App\Http\Controllers\Admin\TicketController::class, 'statuses'])->name('all-tickets');
     Route::post('/all-tickets/bulk-assign', [\App\Http\Controllers\Admin\TicketController::class, 'bulkAssign'])->name('tickets.bulkAssign');
 
@@ -89,6 +103,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/tickets/{ticket}/ai-summary', [\App\Http\Controllers\Admin\TicketController::class, 'generateSummary'])->name('tickets.aiSummary');
     Route::post('/tickets/{ticket}/mark-unread', [\App\Http\Controllers\Admin\TicketController::class, 'markMessagesAsUnread'])->name('tickets.markUnread');
     Route::post('/messages/{message}/mark-read', [\App\Http\Controllers\Admin\TicketController::class, 'markMessageAsRead'])->name('messages.markRead');
+    Route::post('/agent-note/save', [\App\Http\Controllers\Admin\TicketController::class, 'saveAgentNote'])->name('agent-note.save');
 
 
 

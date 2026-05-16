@@ -37,6 +37,13 @@
                                     :active="request()->routeIs('all-tickets')">Tickets</x-layouts.sidebar-link>
                             @endif
 
+                            @if(auth()->check() && auth()->user()->hasRole(['admin', 'manager']))
+                                <x-layouts.sidebar-link href="{{ route('reports.agent-performance') }}" icon='fas-chart-line'
+                                    :active="request()->routeIs('reports.agent-performance*')">Agent Report</x-layouts.sidebar-link>
+                                <x-layouts.sidebar-link href="{{ route('reports.page-performance') }}" icon='fas-chart-pie'
+                                    :active="request()->routeIs('reports.page-performance*')">Page Report</x-layouts.sidebar-link>
+                            @endif
+
 
 
                             @if(auth()->check() &&  auth()->user()->hasPermission('support-ticket'))

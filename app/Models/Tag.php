@@ -12,6 +12,7 @@ class Tag extends Model
 
     protected $fillable = [
         'name',
+        'category',
     ];
 
     public function tickets(): BelongsToMany

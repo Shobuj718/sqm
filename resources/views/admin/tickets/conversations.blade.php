@@ -114,11 +114,47 @@
                     <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
                         Inbox
                     </h2>
-                    <button type="button" class="inline-flex items-center justify-center h-9 w-9 rounded-full border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white transition-colors" title="Refresh inbox">
-                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M4.93 4.93a10 10 0 0114.14 0 10 10 0 010 14.14M12 2v4m0 12v4m10-10h-4M6 12H2" />
-                        </svg>
-                    </button>
+                        {{--
+                            {{ $inboxTotal }} conversations · {{ $inboxUnread }} unread
+                        --}}
+                    <div class="flex items-center gap-2">
+                        <button type="button" class="inline-flex items-center justify-center h-9 w-9 rounded-full border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white transition-colors" title="Refresh inbox">
+                            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M4.93 4.93a10 10 0 0114.14 0 10 10 0 010 14.14M12 2v4m0 12v4m10-10h-4M6 12H2" />
+                            </svg>
+                        </button>
+
+                        <div class="relative">
+                            <button id="inbox-filter-toggle" type="button" onclick="toggleInboxFilter()" class="inline-flex items-center justify-center h-9 w-9 rounded-full border border-gray-200 dark:border-gray-700 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white transition-colors" title="Filter conversations">
+                                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 5h18M7 12h10M10 19h4" />
+                                </svg>
+                            </button>
+
+                            <div id="inbox-filter-box" class="hidden absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 shadow-lg z-50">
+                                @php
+                                    $pageNames = $tickets->pluck('facebookPage.page_name')->filter()->unique()->values();
+                                    $agentNames = $tickets->pluck('assignedAgent.name')->filter()->unique()->values();
+                                @endphp
+                                <select id="inbox-filter-select" class="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-400 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+                                    <option value="">All pages</option>
+                                    @foreach($pageNames as $p)
+                                        <option value="{{ $p }}">{{ $p }}</option>
+                                    @endforeach
+                                </select>
+                                <select id="inbox-filter-agent-select" class="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-blue-400 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 mt-2">
+                                    <option value="">All agents</option>
+                                    @foreach($agentNames as $a)
+                                        <option value="{{ $a }}">{{ $a }}</option>
+                                    @endforeach
+                                </select>
+                                <div class="flex gap-2 mt-2">
+                                    <button type="button" onclick="applyInboxFilter()" class="flex-1 rounded-full bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition dark:bg-blue-600 dark:hover:bg-blue-700">Apply</button>
+                                    <button type="button" onclick="clearInboxFilter()" class="flex-1 rounded-full border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800">Clear</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -152,6 +188,8 @@
                         class="conversation-item mx-2 mt-1 px-3 py-2 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent {{ $isUnread ? 'bg-blue-50 dark:bg-blue-900/20' : '' }}"
                         data-id="{{ $ticket->id }}"
                         data-unread-count="{{ $unreadCount }}"
+                        data-page-name="{{ $ticket->facebookPage->page_name ?? '' }}"
+                        data-assigned-agent="{{ optional($ticket->assignedAgent)->name ?? '' }}"
                     >
 
                         <div class="flex items-start gap-2">
@@ -162,7 +200,7 @@
                                     @if($ticket->channel === 'messenger')
                                         <i class="fab fa-facebook-messenger fa-lg text-white"></i>
                                     @elseif($ticket->channel === 'comment')
-                                        <i class="fab fa-facebook fa-lg text-white"></i>
+                                        <i class="fas fa-comment fa-lg text-white"></i>
                                     @else
                                         {{ strtoupper(substr($ticket->customer_name ?? 'U',0,1)) }}
                                     @endif
@@ -269,7 +307,6 @@
                     </div>
 
                 @endforelse
-
             </div>
 
         </div>
@@ -280,7 +317,7 @@
             id="main-content"
         >
 
-            <button id="open-context-panel-button" onclick="toggleContextPanel()" class="hidden absolute right-4 top-4 z-20 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+            <button id="open-context-panel-button" onclick="toggleContextPanel()" style="display:none;" class="hidden absolute right-4 top-4 z-20 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
                 </svg>
@@ -321,7 +358,7 @@
         </div>
 
         {{-- CONTEXT PANEL --}}
-        <div class="w-80 bg-white dark:bg-gray-900 border-l border-gray-100 dark:border-gray-700 flex flex-col shrink-0 transition-all duration-300 ease-in-out" id="context-panel">
+        <div class="hidden w-80 bg-white dark:bg-gray-900 border-l border-gray-100 dark:border-gray-700 flex flex-col shrink-0 transition-all duration-300 ease-in-out z-10" id="context-panel">
 
             {{-- CONTEXT HEADER --}}
             <div class="px-4 py-3 border-b border-gray-100 dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-900 z-20">
@@ -338,67 +375,6 @@
             {{-- CONTEXT CONTENT --}}
             <div class="flex-1 overflow-y-auto p-4 space-y-4" id="context-content">
 
-                {{-- SUMMARY CARD --}}
-                <div class="rounded-3xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 p-4 shadow-sm">
-                    <div class="flex items-center justify-between gap-3 mb-3">
-                        <div class="flex items-center gap-2 text-gray-800 dark:text-gray-100">
-                            <span class="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16h6m2 4H7a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v12a2 2 0 01-2 2z" />
-                                </svg>
-                            </span>
-                            <div>
-                                <h4 class="text-sm font-semibold">Summary</h4>
-                                <p class="text-xs text-gray-500 dark:text-gray-400">Click Edit to update the summary inline.</p>
-                            </div>
-                        </div>
-                        <div class="flex gap-2 items-center">
-                            <button type="button" id="ai-summary-btn" onclick="generateAISummary()" class="rounded-full border border-transparent bg-white px-3 py-1 text-xs font-semibold text-purple-600 hover:bg-purple-50 dark:bg-gray-900 dark:text-purple-200 dark:hover:bg-purple-900 transition" title="Generate AI summary">
-                                🤖 AI
-                            </button>
-                            <button type="button" id="edit-summary-btn" onclick="enableSummaryEdit()" class="rounded-full border border-transparent bg-white px-3 py-1 text-xs font-semibold text-blue-600 hover:bg-blue-50 dark:bg-gray-900 dark:text-blue-200 dark:hover:bg-blue-900 transition">
-                                Edit
-                            </button>
-                        </div>
-                    </div>
-                    <div id="conversation-summary-view" class="min-h-[120px] rounded-2xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 leading-relaxed">
-                        <div id="conversation-summary-text" class="whitespace-pre-wrap break-words text-sm text-gray-700 dark:text-gray-200">Write a summary for this conversation</div>
-                    </div>
-                    <textarea id="conversation-summary" placeholder="Write a summary for this conversation" class="hidden w-full min-h-[120px] resize-none rounded-2xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:focus:border-blue-500 dark:focus:ring-blue-900"></textarea>
-                    <div id="summary-action-buttons" class="hidden mt-3 flex gap-2 justify-end">
-                        <button type="button" onclick="cancelSummaryEdit()" class="rounded-full border border-gray-300 bg-white px-4 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 transition">Cancel</button>
-                        <button type="button" id="save-summary-btn" onclick="saveSummary(true)" class="rounded-full bg-blue-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition">Save</button>
-                    </div>
-                </div>
-
-                {{-- TAGS CARD --}}
-                <div class="rounded-3xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 p-4 shadow-sm">
-                    <div class="flex items-center justify-between gap-3 mb-3">
-                        <div class="flex items-center gap-2 text-gray-800 dark:text-gray-100">
-                            <span class="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-200">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                                </svg>
-                            </span>
-                            <div>
-                                <h4 class="text-sm font-semibold">Tags</h4>
-                                <p class="text-xs text-gray-500 dark:text-gray-400">Choose from database tags and add multiple tags.</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="flex items-center gap-2 mb-3">
-                        <select id="conversation-tag-select" class="min-w-0 flex-1 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:focus:border-blue-500 dark:focus:ring-blue-900">
-                            <option value="">Select a tag</option>
-                        </select>
-                        <button type="button" id="add-tag-btn" onclick="handleAddTag()" class="rounded-full border border-transparent bg-white px-4 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-50 dark:bg-gray-900 dark:hover:bg-blue-800 transition">
-                            Add
-                        </button>
-                    </div>
-                    <div class="flex flex-wrap gap-2 text-sm" id="conversation-tags">
-                        <span class="text-xs text-gray-500 dark:text-gray-400">No tags yet</span>
-                    </div>
-                </div>
-
                 {{-- CUSTOMER DETAILS CARD --}}
                 <div class="rounded-3xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 p-4 shadow-sm">
                     <div class="flex items-center gap-2 mb-3 text-gray-800 dark:text-gray-100">
@@ -414,6 +390,102 @@
                     </div>
                     <div class="space-y-3 text-sm text-gray-600 dark:text-gray-400" id="customer-details">
                         <div>Select a conversation to view customer information</div>
+                    </div>
+                </div>
+
+                {{-- SUMMARY CARD --}}
+                <div class="rounded-3xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 p-3">
+                    <div class="flex items-center justify-between gap-3 mb-3">
+                        <div class="flex items-center gap-2 text-gray-800 dark:text-gray-100">
+                            <span class="inline-flex h-8 w-8 items-center justify-center rounded-2xl bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16h6m2 4H7a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v12a2 2 0 01-2 2z" />
+                                </svg>
+                            </span>
+                            <div>
+                                <h4 class="text-sm font-semibold">Summary</h4>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">Edit the conversation summary.</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button type="button" id="ai-summary-btn" onclick="generateAISummary()" class="h-8 w-8 rounded-full bg-purple-100 dark:bg-purple-900 hover:bg-purple-200 dark:hover:bg-purple-800 transition flex items-center justify-center text-purple-600 dark:text-purple-400" title="Generate AI summary">
+                                🤖
+                            </button>
+                            <button type="button" id="edit-summary-btn" onclick="enableSummaryEdit()" class="text-xs font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-100 transition">Edit</button>
+                        </div>
+                    </div>
+                    <div id="summary-card-body">
+                        <div id="conversation-summary-view" class="min-h-[100px] rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 leading-relaxed">
+                            <div id="conversation-summary-text" class="whitespace-pre-wrap break-words">Write a summary for this conversation</div>
+                            <div class="mt-2 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                                <span id="conversation-summary-count"></span>
+                                <button type="button" id="summary-see-more" onclick="toggleSummaryExpand()" class="hidden font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-100 transition">See more</button>
+                            </div>
+                        </div>
+                        <textarea id="conversation-summary" placeholder="Write a summary for this conversation" class="hidden w-full min-h-[100px] resize-none rounded-2xl border border-gray-200 bg-white px-3 py-3 text-sm text-gray-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:focus:border-blue-500 dark:focus:ring-blue-900"></textarea>
+                        <div id="summary-action-buttons" class="hidden mt-3 flex gap-2 justify-end">
+                            <button type="button" onclick="cancelSummaryEdit()" class="rounded-full border border-gray-300 bg-white px-4 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 transition">Cancel</button>
+                            <button type="button" id="save-summary-btn" onclick="saveSummary(true)" class="rounded-full bg-blue-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 transition">Save</button>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- TAGS CARD --}}
+                <div class="rounded-3xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-950 p-3">
+                    <div class="flex items-center justify-between gap-2 mb-3 text-gray-800 dark:text-gray-100">
+                        <div>
+                            <h4 class="text-sm font-semibold">Tags</h4>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Selected tags shown first.</p>
+                        </div>
+                        <button type="button" id="tags-expand-btn" onclick="toggleTagExpand()" class="text-xs font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-100 transition">Edit</button>
+                    </div>
+                    <div id="tags-collapsed-view" class="space-y-2 text-sm text-gray-500 dark:text-gray-400">
+                        <div id="conversation-business-tag">Business: <span class="text-gray-400 dark:text-gray-500">None</span></div>
+                        <div id="conversation-sentiment-tag">Sentiment: <span class="text-gray-400 dark:text-gray-500">None</span></div>
+                    </div>
+                    <div id="tags-edit-body" class="hidden space-y-3 text-sm">
+                        <div class="grid gap-2">
+                            <label for="conversation-business-tag-select" class="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Business</label>
+                            <select id="conversation-business-tag-select" class="w-full rounded-full border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-400 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:focus:border-blue-500 dark:focus:ring-blue-900">
+                                <option value="">None</option>
+                            </select>
+                        </div>
+                        <div class="grid gap-2">
+                            <label for="conversation-sentiment-tag-select" class="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Sentiment</label>
+                            <select id="conversation-sentiment-tag-select" class="w-full rounded-full border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-400 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:focus:border-blue-500 dark:focus:ring-blue-900">
+                                <option value="">None</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notes Card -->
+                <div class="overflow-hidden rounded-3xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950">
+                    <div class="flex items-center justify-between border-b border-gray-200 px-3 py-3 dark:border-gray-800">
+                        <div class="space-y-0.5">
+                            <h4 class="text-sm font-semibold">My Notes</h4>
+                            <p class="text-xs text-gray-500 dark:text-gray-400">Personal notes (visible only to you).</p>
+                        </div>
+                        <button type="button" id="notes-expand-btn" onclick="toggleNotesExpand()" class="text-xs font-semibold text-blue-600 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-100 transition">Edit</button>
+                    </div>
+                    <div id="notes-collapsed-view" class="space-y-2 p-3 text-sm">
+                        <div id="notes-preview" class="text-gray-600 dark:text-gray-300 line-clamp-3 italic">
+                            <span class="text-gray-400 dark:text-gray-500">No notes yet. Click Edit to add one.</span>
+                        </div>
+                    </div>
+                    <div id="notes-edit-body" class="hidden space-y-3 border-t border-gray-200 p-3 dark:border-gray-800">
+                        <textarea id="agent-note-textarea"
+                            class="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-400 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:focus:border-blue-500 dark:focus:ring-blue-900"
+                            rows="4"
+                            placeholder="Add your personal notes here..."></textarea>
+                        <div class="flex gap-2">
+                            <button type="button" onclick="saveAgentNote()" class="flex-1 rounded-full bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition dark:bg-blue-600 dark:hover:bg-blue-700">
+                                Save
+                            </button>
+                            <button type="button" onclick="toggleNotesExpand()" class="flex-1 rounded-full border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800">
+                                Cancel
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -504,8 +576,16 @@
                 document.getElementById('chat-area').innerHTML =
                     data.html;
 
-                // Update context panel with ticket data
+                // Update context panel with ticket data and ensure it is visible
                 updateContextPanel(data.ticket);
+                const contextPanel = document.getElementById('context-panel');
+                const openContextButton = document.getElementById('open-context-panel-button');
+                if (contextPanel) {
+                    contextPanel.classList.remove('hidden');
+                }
+                if (openContextButton) {
+                    openContextButton.classList.add('hidden');
+                }
 
                 bindReplyForm();
                 bindTicketControls();
@@ -938,19 +1018,43 @@
             previewImage.src = '';
         }
 
-        function showFilesModal()
+        function showFilesPanel()
         {
-            const modal = document.getElementById('files-modal');
-            if (modal) {
-                modal.classList.remove('hidden');
+            const messages = document.getElementById('messages-container');
+            const panel = document.getElementById('files-panel');
+            if (messages && panel) {
+                messages.classList.add('hidden');
+                panel.classList.remove('hidden');
             }
         }
 
-        function closeFilesModal()
+        function closeFilesPanel()
         {
-            const modal = document.getElementById('files-modal');
-            if (modal) {
-                modal.classList.add('hidden');
+            const messages = document.getElementById('messages-container');
+            const panel = document.getElementById('files-panel');
+            if (messages && panel) {
+                panel.classList.add('hidden');
+                messages.classList.remove('hidden');
+            }
+        }
+
+        function showLogsPanel()
+        {
+            const messages = document.getElementById('messages-container');
+            const panel = document.getElementById('logs-panel');
+            if (messages && panel) {
+                messages.classList.add('hidden');
+                panel.classList.remove('hidden');
+            }
+        }
+
+        function closeLogsPanel()
+        {
+            const messages = document.getElementById('messages-container');
+            const panel = document.getElementById('logs-panel');
+            if (messages && panel) {
+                panel.classList.add('hidden');
+                messages.classList.remove('hidden');
             }
         }
 
@@ -964,12 +1068,19 @@
                 icon.style.transform = 'rotate(0deg)';
                 if (openButton) {
                     openButton.classList.add('hidden');
+                    openButton.style.display = 'none';
                 }
             } else {
                 panel.classList.add('hidden');
                 icon.style.transform = 'rotate(180deg)';
                 if (openButton) {
-                    openButton.classList.remove('hidden');
+                    if (currentTicketId) {
+                        openButton.classList.remove('hidden');
+                        openButton.style.display = 'inline-flex';
+                    } else {
+                        openButton.classList.add('hidden');
+                        openButton.style.display = 'none';
+                    }
                 }
             }
         }
@@ -980,21 +1091,32 @@
 
             // Update summary
             const summaryEl = document.getElementById('conversation-summary');
-            const summaryText = document.getElementById('conversation-summary-text');
             const summaryValue = ticketData.summary || '';
             if (summaryEl) {
                 summaryEl.value = summaryValue;
                 summaryEl.dataset.originalValue = summaryValue;
             }
-            if (summaryText) {
-                summaryText.textContent = summaryValue || 'Write a summary for this conversation';
-            }
+            summaryExpanded = false;
+            updateSummaryView(summaryValue);
+            disableSummaryEdit();
 
-            // Update tags
+            // Update tags: separate available tags and selected tags into categories
             availableTags = ticketData.available_tags || [];
-            selectedTags = ticketData.tags || [];
+            // selectedTags as object with categories
+            selectedTags = { business: null, sentiment: null };
+            const incomingTags = ticketData.tags || [];
+            incomingTags.forEach(t => {
+                const cat = (t.category || '').toString().toLowerCase();
+                if (cat === 'sentiment') {
+                    selectedTags.sentiment = t;
+                } else if (cat === 'business') {
+                    selectedTags.business = t;
+                }
+            });
             renderTagOptions();
             renderSelectedTags();
+            tagsExpanded = false;
+            updateTagView();
 
             // Update customer details
             const customerEl = document.getElementById('customer-details');
@@ -1017,10 +1139,19 @@
             } else {
                 customerEl.innerHTML = '<div class="text-sm text-gray-500 dark:text-gray-400">Customer information not available</div>';
             }
+
+            // Update agent notes
+            window.agentNote = ticketData.agent_note || '';
+            window.agentNoteId = ticketData.agent_note_id || null;
+            notesExpanded = false;
+            updateNotesView();
         }
 
         let availableTags = [];
-        let selectedTags = [];
+        let selectedTags = { business: null, sentiment: null };
+        const SUMMARY_TRUNCATE_LENGTH = 140;
+        let summaryExpanded = false;
+        let tagsExpanded = false;
 
         function bindSummaryInput()
         {
@@ -1047,63 +1178,149 @@
             });
         }
 
-        function renderTagOptions()
+        function updateSummaryView(summaryValue)
         {
-            const select = document.getElementById('conversation-tag-select');
-            if (!select) {
+            const summaryText = document.getElementById('conversation-summary-text');
+            const summaryCount = document.getElementById('conversation-summary-count');
+            const seeMoreBtn = document.getElementById('summary-see-more');
+            const trimmedSummary = summaryValue || '';
+            const length = trimmedSummary.length;
+            const shouldTruncate = length > SUMMARY_TRUNCATE_LENGTH;
+
+            if (!summaryText || !summaryCount || !seeMoreBtn) {
                 return;
             }
 
-            const currentIds = selectedTags.map(tag => tag.id);
-            select.innerHTML = `
-                <option value="">Select a tag</option>
-                ${availableTags.map(tag => `
-                    <option value="${tag.id}" ${currentIds.includes(tag.id) ? 'disabled' : ''}>
-                        ${escapeHtml(tag.name)}
-                    </option>
-                `).join('')}
-            `;
+            if (!trimmedSummary) {
+                summaryText.textContent = 'Write a summary for this conversation';
+                summaryCount.textContent = '';
+                seeMoreBtn.classList.add('hidden');
+                return;
+            }
+
+            if (summaryExpanded && shouldTruncate) {
+                summaryText.textContent = trimmedSummary;
+                seeMoreBtn.textContent = 'Show less';
+            } else {
+                const preview = shouldTruncate
+                    ? trimmedSummary.slice(0, SUMMARY_TRUNCATE_LENGTH).replace(/\s+\S*$/, '') + '...'
+                    : trimmedSummary;
+                summaryText.textContent = preview;
+                seeMoreBtn.textContent = 'See more';
+            }
+
+            summaryCount.textContent = `${length} ${length === 1 ? 'char' : 'chars'}`;
+            summaryCount.style.opacity = trimmedSummary ? '1' : '0';
+            if (shouldTruncate) {
+                seeMoreBtn.classList.remove('hidden');
+            } else {
+                seeMoreBtn.classList.add('hidden');
+            }
+        }
+
+        function toggleSummaryExpand()
+        {
+            summaryExpanded = !summaryExpanded;
+            const summaryEl = document.getElementById('conversation-summary');
+            const summaryValue = summaryEl?.value || summaryEl?.dataset?.originalValue || '';
+            updateSummaryView(summaryValue);
+        }
+
+        function updateTagView()
+        {
+            const collapsedView = document.getElementById('tags-collapsed-view');
+            const businessEl = document.getElementById('conversation-business-tag');
+            const sentimentEl = document.getElementById('conversation-sentiment-tag');
+            const editBody = document.getElementById('tags-edit-body');
+            const expandBtn = document.getElementById('tags-expand-btn');
+
+            if (!collapsedView || !businessEl || !sentimentEl || !editBody || !expandBtn) {
+                return;
+            }
+
+            const businessName = selectedTags.business ? escapeHtml(selectedTags.business.name) : 'None';
+            const sentimentName = selectedTags.sentiment ? escapeHtml(selectedTags.sentiment.name) : 'None';
+
+            businessEl.innerHTML = `Business: <span class="text-gray-400 dark:text-gray-500">${businessName}</span>`;
+            sentimentEl.innerHTML = `Sentiment: <span class="text-gray-400 dark:text-gray-500">${sentimentName}</span>`;
+
+            if (tagsExpanded) {
+                editBody.classList.remove('hidden');
+                expandBtn.textContent = 'Hide';
+            } else {
+                editBody.classList.add('hidden');
+                expandBtn.textContent = 'Edit';
+            }
+        }
+
+        function toggleTagExpand()
+        {
+            tagsExpanded = !tagsExpanded;
+            updateTagView();
+        }
+
+        function getTagCategory(tag)
+        {
+            return (tag.category || '').toString().toLowerCase();
+        }
+
+        function renderTagOptions()
+        {
+            const businessSelect = document.getElementById('conversation-business-tag-select');
+            const sentimentSelect = document.getElementById('conversation-sentiment-tag-select');
+
+            if (!businessSelect || !sentimentSelect) {
+                return;
+            }
+
+            // Partition available tags by category (use DB `category` column)
+            const businessTags = availableTags.filter(t => getTagCategory(t) === 'business');
+            const sentimentTags = availableTags.filter(t => getTagCategory(t) === 'sentiment');
+
+            // Prevent selecting same tag in both categories
+            const otherSelectedIds = [selectedTags.business?.id, selectedTags.sentiment?.id].filter(Boolean);
+
+            businessSelect.innerHTML = `<option value="">None</option>` + businessTags.map(tag => `
+                <option value="${tag.id}" ${otherSelectedIds.includes(tag.id) && selectedTags.business?.id !== tag.id ? 'disabled' : ''} ${selectedTags.business && selectedTags.business.id === tag.id ? 'selected' : ''}>
+                    ${escapeHtml(tag.name)}
+                </option>
+            `).join('');
+
+            sentimentSelect.innerHTML = `<option value="">None</option>` + sentimentTags.map(tag => `
+                <option value="${tag.id}" ${otherSelectedIds.includes(tag.id) && selectedTags.sentiment?.id !== tag.id ? 'disabled' : ''} ${selectedTags.sentiment && selectedTags.sentiment.id === tag.id ? 'selected' : ''}>
+                    ${escapeHtml(tag.name)}
+                </option>
+            `).join('');
+
+            businessSelect.onchange = function () {
+                const val = this.value ? Number(this.value) : null;
+                selectedTags.business = availableTags.find(t => t.id === val) || null;
+                renderTagOptions();
+                renderSelectedTags();
+                saveTags();
+            };
+
+            sentimentSelect.onchange = function () {
+                const val = this.value ? Number(this.value) : null;
+                selectedTags.sentiment = availableTags.find(t => t.id === val) || null;
+                renderTagOptions();
+                renderSelectedTags();
+                saveTags();
+            };
         }
 
         function renderSelectedTags()
         {
-            const tagsEl = document.getElementById('conversation-tags');
-            if (!tagsEl) {
-                return;
+            const businessEl = document.getElementById('conversation-business-tag');
+            const sentimentEl = document.getElementById('conversation-sentiment-tag');
+
+            if (businessEl) {
+                businessEl.innerHTML = `Business tag: <span class="text-xs text-gray-500 dark:text-gray-400">${selectedTags.business ? escapeHtml(selectedTags.business.name) : 'None'}</span>`;
             }
 
-            if (!selectedTags || selectedTags.length === 0) {
-                tagsEl.innerHTML = '<span class="text-xs text-gray-500 dark:text-gray-400">No tags yet</span>';
-                return;
+            if (sentimentEl) {
+                sentimentEl.innerHTML = `Sentiment tag: <span class="text-xs text-gray-500 dark:text-gray-400">${selectedTags.sentiment ? escapeHtml(selectedTags.sentiment.name) : 'None'}</span>`;
             }
-
-            tagsEl.innerHTML = selectedTags.map(tag => `
-                <span class="inline-flex items-center gap-2 rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                    ${escapeHtml(tag.name)}
-                    <button type="button" onclick="removeTagFromTicket(${tag.id})" class="rounded-full p-1 text-blue-700 hover:bg-blue-200 dark:text-blue-200 dark:hover:bg-blue-800">
-                        &times;
-                    </button>
-                </span>
-            `).join('');
-        }
-
-        function handleAddTag()
-        {
-            const select = document.getElementById('conversation-tag-select');
-            if (!select || !select.value) {
-                return;
-            }
-
-            const tagId = Number(select.value);
-            const tag = availableTags.find(tag => tag.id === tagId);
-            if (!tag || selectedTags.some(existing => existing.id === tagId)) {
-                return;
-            }
-
-            selectedTags.push(tag);
-            renderTagOptions();
-            renderSelectedTags();
-            saveTags();
         }
 
         async function saveTags()
@@ -1112,7 +1329,9 @@
                 return;
             }
 
-            const tagIds = selectedTags.map(tag => tag.id);
+            const businessId = selectedTags.business ? selectedTags.business.id : null;
+            const sentimentId = selectedTags.sentiment ? selectedTags.sentiment.id : null;
+
             try {
                 await fetch(`/tickets/${currentTicketId}`, {
                     method: 'PUT',
@@ -1123,19 +1342,36 @@
                         'Accept': 'application/json',
                         'X-Requested-With': 'XMLHttpRequest'
                     },
-                    body: JSON.stringify({ tags: tagIds })
+                    body: JSON.stringify({ business_tag: businessId, sentiment_tag: sentimentId })
                 });
             } catch (error) {
                 console.error('Unable to save tags', error);
             }
         }
 
-        function removeTagFromTicket(tagId)
+        function removeTagFromTicket(category)
         {
-            selectedTags = selectedTags.filter(tag => tag.id !== tagId);
+            if (!['business','sentiment'].includes(category)) return;
+            selectedTags[category] = null;
             renderTagOptions();
             renderSelectedTags();
             saveTags();
+        }
+
+        function toggleCard(cardBodyId, toggleBtnId)
+        {
+            const body = document.getElementById(cardBodyId);
+            const btn = document.getElementById(toggleBtnId);
+            if (!body || !btn) return;
+
+            const isHidden = body.classList.toggle('hidden');
+
+            // swap the two svg icons inside the button
+            const icons = btn.querySelectorAll('svg.toggle-icon');
+            icons.forEach(icon => icon.classList.toggle('hidden'));
+
+            // update title
+            btn.title = isHidden ? 'Expand' : 'Collapse';
         }
 
         function enableSummaryEdit()
@@ -1167,6 +1403,8 @@
                 return;
             }
 
+            summaryExpanded = false;
+            updateSummaryView(summaryEl.dataset.originalValue || summaryEl.value || '');
             summaryEl.classList.add('hidden');
             summaryView.classList.remove('hidden');
             editButton.classList.remove('hidden');
@@ -1219,7 +1457,8 @@
                 const data = await response.json();
                 if (data.status === 'success') {
                     summaryEl.dataset.originalValue = summary;
-                    summaryText.textContent = summary || 'Write a summary for this conversation';
+                    summaryExpanded = false;
+                    updateSummaryView(summary);
                     disableSummaryEdit();
                 } else {
                     console.error('Unable to save summary');
@@ -1239,15 +1478,7 @@
             }
         });
 
-        document.addEventListener('click', function (event) {
-            const modal = document.getElementById('files-modal');
-            if (!modal || modal.classList.contains('hidden')) {
-                return;
-            }
-            if (event.target === modal) {
-                closeFilesModal();
-            }
-        });
+        // Files/logs panels are inline in chat area; no global click-to-close needed.
 
         function escapeHtml(unsafe)
         {
@@ -1412,7 +1643,9 @@
             const snippet = channel === 'comment'
                 ? (ticket.initial_message || ticket.subject || 'New comment')
                 : (ticket.subject || 'New ticket');
-            const pageName = ticket.facebook_page_name ? `<span class="text-[10px] font-medium text-[#1877f2]">${escapeHtml(ticket.facebook_page_name)}</span>` : '';
+            const rawPageName = ticket.facebook_page_name || '';
+            const pageName = rawPageName ? `<span class="text-[10px] font-medium text-[#1877f2]">${escapeHtml(rawPageName)}</span>` : '';
+            const rawAssignedAgent = ticket.agent_name || (ticket.assignedAgent && ticket.assignedAgent.name) || '';
             const postLink = ticket.post_link || (ticket.facebook_post_id ? `https://www.facebook.com/${escapeHtml(ticket.facebook_post_id)}` : null);
 
             const attachments = ticket.latest_message?.attachments || ticket.latestMessage?.attachments || ticket.attachments || [];
@@ -1426,13 +1659,15 @@
             const channelIcon = channel === 'messenger'
                 ? '<i class="fab fa-facebook-messenger fa-lg text-white"></i>'
                 : channel === 'comment'
-                    ? '<i class="fab fa-facebook fa-lg text-white"></i>'
+                    ? '<i class="fas fa-comment fa-lg text-white"></i>'
                     : escapeHtml((ticket.customer_name || ticket.customer_facebook_id || 'U').charAt(0).toUpperCase());
 
             return `
                 <div class="conversation-item mx-2 mt-1 px-3 py-2 rounded-2xl cursor-pointer transition-all duration-200 border border-transparent bg-blue-50 dark:bg-blue-900/20"
                     data-id="${ticket.id}"
-                    data-unread-count="${unreadCount}">
+                    data-unread-count="${unreadCount}"
+                    data-page-name="${escapeHtml(rawPageName)}"
+                    data-assigned-agent="${escapeHtml(rawAssignedAgent)}">
                     <div class="flex items-start gap-2">
                         <div class="relative shrink-0">
                             <div class="h-10 w-10 rounded-full bg-gradient-to-r from-[#1877f2] to-[#42a5f5] text-white flex items-center justify-center font-bold text-base shadow-sm">
@@ -1901,6 +2136,115 @@
                 "'": '&#039;'
             };
             return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+    </script>
+
+    <script>
+        let notesExpanded = false;
+
+        function updateNotesView()
+        {
+            const textarea = document.getElementById('agent-note-textarea');
+            const preview = document.getElementById('notes-preview');
+            const editBody = document.getElementById('notes-edit-body');
+            const expandBtn = document.getElementById('notes-expand-btn');
+            const collapsedView = document.getElementById('notes-collapsed-view');
+
+            // Set textarea value
+            if (textarea && window.agentNote) {
+                textarea.value = window.agentNote;
+            }
+
+            // Update preview
+            const noteText = window.agentNote || '';
+            if (noteText.trim()) {
+                preview.innerHTML = `<span class="whitespace-pre-wrap">${escapeHtml(noteText)}</span>`;
+            } else {
+                preview.innerHTML = '<span class="text-gray-400 dark:text-gray-500 italic">No notes yet. Click Edit to add one.</span>';
+            }
+
+            if (notesExpanded) {
+                collapsedView.classList.add('hidden');
+                editBody.classList.remove('hidden');
+                expandBtn.textContent = 'Hide';
+            } else {
+                collapsedView.classList.remove('hidden');
+                editBody.classList.add('hidden');
+                expandBtn.textContent = 'Edit';
+            }
+        }
+
+        function toggleNotesExpand()
+        {
+            notesExpanded = !notesExpanded;
+            updateNotesView();
+        }
+
+        function saveAgentNote()
+        {
+            const textarea = document.getElementById('agent-note-textarea');
+            const noteText = textarea.value.trim();
+
+            // Send AJAX request to save note
+            fetch('{{ route("agent-note.save") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                },
+                body: JSON.stringify({
+                    note: noteText
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.agentNote = noteText;
+                    window.agentNoteId = data.note_id;
+                    notesExpanded = false;
+                    updateNotesView();
+                    showNotification('Note saved successfully', 'Success', 'success');
+                }
+            })
+            .catch(error => {
+                console.error('Error saving note:', error);
+                showNotification('Error saving note', 'Error', 'error');
+            });
+        }
+        // Inbox filter functions
+        function toggleInboxFilter() {
+            const box = document.getElementById('inbox-filter-box');
+            if (!box) return;
+            box.classList.toggle('hidden');
+            if (!box.classList.contains('hidden')) {
+                const input = document.getElementById('inbox-filter-input');
+                if (input) input.focus();
+            }
+        }
+
+        function applyInboxFilter() {
+            const sel = document.getElementById('inbox-filter-select');
+            const agentSelEl = document.getElementById('inbox-filter-agent-select');
+            const q = (sel?.value || '').trim().toLowerCase();
+            const agentQ = (agentSelEl?.value || '').trim().toLowerCase();
+            document.querySelectorAll('.conversation-item').forEach(item => {
+                const page = (item.dataset.pageName || '').toLowerCase();
+                const agent = (item.dataset.assignedAgent || '').toLowerCase();
+                let visible = true;
+                if (q && page !== q) visible = false;
+                if (agentQ && agent !== agentQ) visible = false;
+                item.style.display = visible ? '' : 'none';
+            });
+            // close the filter box
+            const box = document.getElementById('inbox-filter-box');
+            if (box) box.classList.add('hidden');
+        }
+
+        function clearInboxFilter() {
+            const sel = document.getElementById('inbox-filter-select');
+            if (sel) sel.value = '';
+            applyInboxFilter();
         }
 
     </script>

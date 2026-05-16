@@ -82,9 +82,22 @@ class User extends Authenticatable
         return $this->hasMany(Ticket::class, 'assigned_to');
     }
 
+    public function supportMessages(): HasMany
+    {
+        return $this->hasMany(SupportMessage::class, 'user_id');
+    }
+
     public function supportQueues(): BelongsToMany
     {
         return $this->belongsToMany(SupportQueue::class, 'support_queue_user');
+    }
+
+    /**
+     * Get all agent notes for this user.
+     */
+    public function notes(): HasMany
+    {
+        return $this->hasMany(AgentNote::class)->orderBy('created_at', 'desc');
     }
 
     public function isAvailableForAssignment(): bool
