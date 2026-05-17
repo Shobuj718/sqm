@@ -4,9 +4,11 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AgentNote;
+use App\Models\FacebookPage;
 use App\Models\Tag;
 use App\Models\Ticket;
 use App\Models\User;
+use App\Services\RagService;
 use App\Services\TicketLogService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -866,6 +868,8 @@ class TicketController extends Controller
     public function getAISuggestions(Ticket $ticket): JsonResponse
     {
         try {
+            $ragService = app(RagService::class);
+
             // Build conversation history
             $messages = $ticket->messages()
                 ->with('user')
@@ -879,18 +883,57 @@ class TicketController extends Controller
                 $conversation .= "{$sender}: {$message->message}\n";
             }
 
+            if (trim($conversation) === '') {
+                $conversation = trim("Customer: " . ($ticket->initial_message ?? $ticket->subject ?? ''));
+            }
+
             // Detect conversation language
             $language = $this->detectConversationLanguage($conversation);
 
-            // Prepare prompt for AI in the conversation language
-            $prompt = $this->buildSuggestionsPrompt($conversation, $language);
+            $ragSearchText = $this->buildRagSuggestionSearchText($ticket, $conversation);
+            $facebookPageId = $this->resolveRagFacebookPageId($ticket);
+            $matches = $ragService->search(
+                $ragSearchText,
+                $facebookPageId,
+                5,
+                (float) config('rag.suggestion_min_score', 0.2)
+            );
 
-            // Get AI suggestions using OpenAI
-            $suggestions = $this->generateAISuggestionsList($prompt);
+            if ($matches->isEmpty()) {
+                $matches = $ragService->search(
+                    $ragSearchText,
+                    $facebookPageId,
+                    5,
+                    (float) config('rag.suggestion_fallback_min_score', 0.05)
+                );
+            }
+
+            if ($matches->isEmpty() && $facebookPageId) {
+                $matches = $ragService->search(
+                    $ragSearchText,
+                    null,
+                    5,
+                    (float) config('rag.suggestion_fallback_min_score', 0.05)
+                );
+            }
+
+            if ($matches->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No matching RAG knowledge found. Please upload company knowledge or lower RAG_SUGGESTION_FALLBACK_MIN_SCORE.'
+                ], 404);
+            }
+
+            $prompt = $this->buildRagSuggestionsPrompt($conversation, $matches, $language);
+            $suggestions = $this->generateOpenAIRagSuggestions($prompt);
 
             return response()->json([
                 'success' => true,
-                'suggestions' => $suggestions
+                'suggestions' => $suggestions,
+                'rag_matches' => $matches->map(fn (array $match): array => [
+                    'document' => $match['document']->title,
+                    'score' => round($match['score'], 4),
+                ])->all(),
             ]);
 
         } catch (\Exception $e) {
@@ -904,6 +947,188 @@ class TicketController extends Controller
                 'message' => 'Failed to generate AI suggestions: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Build a focused RAG query from the latest ticket context.
+     */
+    private function buildRagSuggestionSearchText(Ticket $ticket, string $conversation): string
+    {
+        $latestCustomerMessage = $ticket->messages()
+            ->where('message_type', 'customer')
+            ->latest('created_at')
+            ->value('message');
+
+        $latestCustomerMessage ??= $ticket->initial_message ?? $ticket->subject;
+        $expandedIntent = $this->expandShortRagQuery((string) $latestCustomerMessage);
+
+        return trim(implode("\n\n", array_filter([
+            $latestCustomerMessage,
+            $expandedIntent,
+            $ticket->summary,
+            $ticket->subject,
+            $ticket->initial_message,
+            \Illuminate\Support\Str::limit($conversation, 1500),
+        ])));
+    }
+
+    /**
+     * Add intent words for very short Facebook comments so embedding search has enough signal.
+     */
+    private function expandShortRagQuery(string $message): ?string
+    {
+        $normalized = strtolower(trim(preg_replace('/\s+/', ' ', $message) ?? $message));
+
+        if ($normalized === '') {
+            return null;
+        }
+
+        $plain = preg_replace('/[^\p{L}\p{N}\s?]/u', '', $normalized) ?? $normalized;
+        $wordCount = str_word_count($plain);
+
+        if ($wordCount > 5 && mb_strlen($plain) > 40) {
+            return null;
+        }
+
+        $positive = ['nice', 'good', 'good job', 'great', 'awesome', 'beautiful', 'love it', 'excellent', 'wow', 'best'];
+        $interest = ['price', 'details', 'inbox', 'available', 'how much', 'need this', 'want to buy', 'buy', 'pp'];
+        $negative = ['bad', 'not good', 'poor service', 'disappointed', 'worst'];
+
+        foreach ($positive as $phrase) {
+            if (str_contains($plain, $phrase)) {
+                return 'short positive comments nice good job great awesome beautiful love it excellent wow suggested replies';
+            }
+        }
+
+        foreach ($interest as $phrase) {
+            if (str_contains($plain, $phrase)) {
+                return 'interest comments price details inbox available how much need this want to buy suggested replies';
+            }
+        }
+
+        foreach ($negative as $phrase) {
+            if (str_contains($plain, $phrase)) {
+                return 'negative short comments bad poor service disappointed worst complaint suggested replies';
+            }
+        }
+
+        if (preg_match('/[\x{1F300}-\x{1FAFF}]/u', $message)) {
+            return 'generic emoji comments heart clap smile fire thumbs up suggested replies';
+        }
+
+        return 'short Facebook page comment suggested reply';
+    }
+
+    /**
+     * Resolve the Facebook page database ID used by RAG documents.
+     */
+    private function resolveRagFacebookPageId(Ticket $ticket): ?int
+    {
+        $ticket->loadMissing('facebookPage');
+
+        if ($ticket->facebookPage?->id) {
+            return $ticket->facebookPage->id;
+        }
+
+        if (!$ticket->facebook_page_id) {
+            return null;
+        }
+
+        $facebookPage = FacebookPage::query()
+            ->where('id', $ticket->facebook_page_id)
+            ->orWhere('page_id', $ticket->facebook_page_id)
+            ->first();
+
+        return $facebookPage?->id;
+    }
+
+    /**
+     * Build an AI prompt that is grounded in retrieved RAG chunks.
+     */
+    private function buildRagSuggestionsPrompt(string $conversation, \Illuminate\Support\Collection $matches, string $language): string
+    {
+        $knowledge = $matches
+            ->map(function (array $match, int $index): string {
+                $document = $match['document'];
+                $source = $document->title;
+                $page = $document->facebookPage?->page_name ?? 'Global';
+                $rank = $index + 1;
+
+                return "Source {$rank}: {$source} ({$page})\n{$match['content']}";
+            })
+            ->implode("\n\n---\n\n");
+
+        return "You are a company customer support assistant. Use only the company knowledge below to suggest replies. Do not invent policy, price, stock, delivery date, refund approval, or discount details. If the knowledge is not enough, ask for the missing customer detail or say the team will check.\n\nReply language: {$language}\n\nCompany knowledge:\n{$knowledge}\n\nConversation:\n{$conversation}\n\nReturn exactly 2 short professional reply suggestions for the next agent message. Each suggestion must be one sentence or less. Do not include labels, numbering, quotes, or explanations.";
+    }
+
+    /**
+     * Generate suggestions from the RAG-grounded prompt.
+     */
+    private function generateOpenAIRagSuggestions(string $prompt): array
+    {
+        if (!env('OPENAI_API_KEY')) {
+            throw new \Exception('OpenAI API key not configured. Please set OPENAI_API_KEY in your .env file.');
+        }
+
+        $response = app('openai')->chat()->create([
+            'model' => config('rag.chat_model', 'gpt-5.4-mini'),
+            'messages' => [
+                [
+                    'role' => 'user',
+                    'content' => $prompt,
+                ],
+            ],
+            'max_completion_tokens' => 220,
+            'temperature' => 0.2,
+        ]);
+
+        $suggestions = $this->parseStrictAISuggestions($response->choices[0]->message->content ?? '');
+
+        if (empty($suggestions)) {
+            throw new \Exception('OpenAI did not return a usable RAG suggestion.');
+        }
+
+        return $suggestions;
+    }
+
+    /**
+     * Parse RAG suggestions without generic fallback replies.
+     */
+    private function parseStrictAISuggestions(string $content): array
+    {
+        $suggestions = [];
+        $lines = explode("\n", trim($content));
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+
+            if ($line === '') {
+                continue;
+            }
+
+            if (preg_match('/^\d+[\).\s-]+(.+)$/', $line, $matches) ||
+                preg_match('/^[-*•]\s*(.+)$/u', $line, $matches)) {
+                $line = trim($matches[1]);
+            }
+
+            $line = trim($line, " \t\n\r\0\x0B\"'");
+
+            if ($line !== '' && !preg_match('/^(suggestion|reply|response)\s*\d*[:.-]/i', $line)) {
+                $suggestions[] = $line;
+            }
+        }
+
+        if (empty($suggestions)) {
+            foreach (preg_split('/\n\s*\n/', $content) ?: [] as $part) {
+                $part = trim($part, " \t\n\r\0\x0B\"'");
+
+                if ($part !== '') {
+                    $suggestions[] = $part;
+                }
+            }
+        }
+
+        return array_slice(array_values(array_unique($suggestions)), 0, 3);
     }
 
     /**
@@ -1326,16 +1551,19 @@ class TicketController extends Controller
     {
         $request->validate([
             'note' => 'required|string|max:5000',
+            'note_id' => 'nullable|integer|exists:agent_notes,id'
         ]);
 
         $user = auth()->user();
-        $note = $user->notes()->first();
 
-        if ($note) {
-            // Update existing note
-            $note->update(['content' => $request->note]);
+        if ($request->filled('note_id')) {
+            $note = $user->notes()->where('id', $request->note_id)->first();
+            if ($note) {
+                $note->update(['content' => $request->note]);
+            } else {
+                return response()->json(['success' => false, 'message' => 'Note not found'], 404);
+            }
         } else {
-            // Create new note
             $note = $user->notes()->create(['content' => $request->note]);
         }
 
@@ -1345,6 +1573,29 @@ class TicketController extends Controller
             'message' => 'Note saved successfully',
         ]);
     }
+
+    /**
+     * List agent notes for current user
+     */
+    public function listAgentNotes(Request $request): JsonResponse
+    {
+        $user = auth()->user();
+        $notes = $user->notes()->orderByDesc('created_at')->get(['id', 'content', 'created_at']);
+
+        return response()->json(['success' => true, 'notes' => $notes]);
+    }
+
+    /**
+     * Delete an agent note
+     */
+    public function deleteAgentNote(Request $request, $id): JsonResponse
+    {
+        $user = auth()->user();
+        $note = $user->notes()->where('id', $id)->first();
+        if (!$note) {
+            return response()->json(['success' => false, 'message' => 'Note not found'], 404);
+        }
+        $note->delete();
+        return response()->json(['success' => true, 'message' => 'Note deleted']);
+    }
 }
-
-

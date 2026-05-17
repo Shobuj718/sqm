@@ -64,4 +64,15 @@
 -- Different comment Different ticket
 -- When comment it should , include post link and text on the conversation
 
+# Tanbir Sir er requirments
+-- Auto suggest Reply, for each message, click button suggest reply 2-3
+-- Summery Generate Via AI
+-- Auto Pilot Mode - work on his own when Agent not Available
+-- Human Dependency Decrease
+-- Host the project - inside CRM
+-- Tag Management - Based on Business , Sales tag and Comment type tag
+
+
+
+
 

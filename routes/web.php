@@ -7,6 +7,7 @@ use App\Http\Controllers\FacebookAuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\Admin\PerformanceReportController;
+use App\Http\Controllers\Admin\RagKnowledgeController;
 use App\Http\Controllers\Admin\SupportQueueController;
 use App\Http\Controllers\Admin\UserController;
 
@@ -104,6 +105,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/tickets/{ticket}/mark-unread', [\App\Http\Controllers\Admin\TicketController::class, 'markMessagesAsUnread'])->name('tickets.markUnread');
     Route::post('/messages/{message}/mark-read', [\App\Http\Controllers\Admin\TicketController::class, 'markMessageAsRead'])->name('messages.markRead');
     Route::post('/agent-note/save', [\App\Http\Controllers\Admin\TicketController::class, 'saveAgentNote'])->name('agent-note.save');
+    Route::get('/agent-notes', [\App\Http\Controllers\Admin\TicketController::class, 'listAgentNotes'])->name('agent-notes.list');
+    Route::delete('/agent-notes/{id}', [\App\Http\Controllers\Admin\TicketController::class, 'deleteAgentNote'])->name('agent-notes.delete');
 
 
 
@@ -150,6 +153,12 @@ Route::middleware(['auth'])->group(function () {
         });
 
         Route::middleware('role:admin')->group(function () {
+            Route::get('/rag', [RagKnowledgeController::class, 'index'])->name('rag.index');
+            Route::post('/rag', [RagKnowledgeController::class, 'store'])->name('rag.store');
+            Route::get('/rag/{document}', [RagKnowledgeController::class, 'show'])->name('rag.show');
+            Route::post('/rag/{document}/rebuild', [RagKnowledgeController::class, 'rebuild'])->name('rag.rebuild');
+            Route::delete('/rag/{document}', [RagKnowledgeController::class, 'destroy'])->name('rag.destroy');
+
             Route::get('/support-queues', [SupportQueueController::class, 'index'])->name('support-queues.index');
             Route::get('/support-queues/create', [SupportQueueController::class, 'create'])->name('support-queues.create');
             Route::post('/support-queues', [SupportQueueController::class, 'store'])->name('support-queues.store');

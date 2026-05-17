@@ -44,6 +44,11 @@
                                     :active="request()->routeIs('reports.page-performance*')">Page Report</x-layouts.sidebar-link>
                             @endif
 
+                            @if(auth()->check() && auth()->user()->hasRole('admin'))
+                                <x-layouts.sidebar-link href="{{ route('rag.index') }}" icon='fas-book-open'
+                                    :active="request()->routeIs('rag*')">Knowledge Base</x-layouts.sidebar-link>
+                            @endif
+
 
 
                             @if(auth()->check() &&  auth()->user()->hasPermission('support-ticket'))

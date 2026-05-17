@@ -219,7 +219,7 @@
                                     </h3>
                                     <div class="flex items-center gap-2 shrink-0">
                                         <span class="conversation-time text-[10px] {{ $isUnread ? 'text-gray-900 dark:text-gray-100 font-medium' : 'text-gray-400 dark:text-gray-500' }} whitespace-nowrap">
-                                            {{ $ticket->updated_at->format('h:i A') }}
+                                            {{ ( $lastMessage?->created_at ?? $ticket->updated_at )->format('h:i A') }}
                                         </span>
                                         @if($unreadCount > 0)
                                             <span class="conversation-unread-badge inline-flex items-center justify-center h-5 min-w-[1.25rem] rounded-full bg-blue-600 text-white text-[10px] font-semibold">
@@ -474,16 +474,18 @@
                         </div>
                     </div>
                     <div id="notes-edit-body" class="hidden space-y-3 border-t border-gray-200 p-3 dark:border-gray-800">
+                        <div id="agent-notes-list" class="space-y-2 max-h-40 overflow-y-auto"></div>
+
                         <textarea id="agent-note-textarea"
                             class="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 outline-none transition focus:border-blue-400 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:focus:border-blue-500 dark:focus:ring-blue-900"
                             rows="4"
                             placeholder="Add your personal notes here..."></textarea>
                         <div class="flex gap-2">
                             <button type="button" onclick="saveAgentNote()" class="flex-1 rounded-full bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition dark:bg-blue-600 dark:hover:bg-blue-700">
-                                Save
+                                Add
                             </button>
                             <button type="button" onclick="toggleNotesExpand()" class="flex-1 rounded-full border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800">
-                                Cancel
+                                Close
                             </button>
                         </div>
                     </div>
@@ -2168,6 +2170,8 @@
                 collapsedView.classList.add('hidden');
                 editBody.classList.remove('hidden');
                 expandBtn.textContent = 'Hide';
+                // Load notes list when expanded
+                fetchAgentNotes();
             } else {
                 collapsedView.classList.remove('hidden');
                 editBody.classList.add('hidden');
@@ -2185,8 +2189,9 @@
         {
             const textarea = document.getElementById('agent-note-textarea');
             const noteText = textarea.value.trim();
+            if (!noteText) return;
 
-            // Send AJAX request to save note
+            // Send AJAX request to create a new note (or update if note_id provided)
             fetch('{{ route("agent-note.save") }}', {
                 method: 'POST',
                 headers: {
@@ -2200,10 +2205,8 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    window.agentNote = noteText;
-                    window.agentNoteId = data.note_id;
-                    notesExpanded = false;
-                    updateNotesView();
+                    textarea.value = '';
+                    fetchAgentNotes();
                     showNotification('Note saved successfully', 'Success', 'success');
                 }
             })
@@ -2211,6 +2214,71 @@
                 console.error('Error saving note:', error);
                 showNotification('Error saving note', 'Error', 'error');
             });
+        }
+
+        async function fetchAgentNotes()
+        {
+            try {
+                const res = await fetch('{{ route("agent-notes.list") }}', { headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content') } });
+                const data = await res.json();
+                if (data.success) {
+                    renderAgentNotesList(data.notes || []);
+                }
+            } catch (e) {
+                console.error('Unable to fetch notes', e);
+            }
+        }
+
+        function renderAgentNotesList(notes)
+        {
+            const container = document.getElementById('agent-notes-list');
+            if (!container) return;
+            if (!notes || notes.length === 0) {
+                container.innerHTML = '<div class="text-sm text-gray-500">No saved notes yet.</div>';
+                return;
+            }
+
+            container.innerHTML = notes.map(n => `
+                <div class="p-2 rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex items-start justify-between gap-2">
+                    <div class="flex-1 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap break-words">${escapeHtml(n.content)}</div>
+                    <div class="flex items-center gap-2 ml-2">
+                        <button type="button" onclick="useAgentNote(${n.id}, ${JSON.stringify(n.content)})" class="text-xs px-2 py-1 rounded-full bg-green-600 text-white">Use</button>
+                        <button type="button" onclick="deleteAgentNote(${n.id})" class="text-xs px-2 py-1 rounded-full border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function useAgentNote(id, content)
+        {
+            const textarea = document.getElementById('agent_message');
+            if (!textarea) return;
+            textarea.value = (textarea.value ? textarea.value + '\n\n' : '') + content;
+            // Close notes panel
+            notesExpanded = false;
+            updateNotesView();
+        }
+
+        async function deleteAgentNote(id)
+        {
+            if (!confirm('Delete this note?')) return;
+            try {
+                const res = await fetch(`/agent-notes/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                        'Accept': 'application/json'
+                    }
+                });
+                const data = await res.json();
+                if (data.success) {
+                    fetchAgentNotes();
+                    showNotification('Note deleted', 'Success', 'success');
+                }
+            } catch (e) {
+                console.error('Unable to delete note', e);
+                showNotification('Error deleting note', 'Error', 'error');
+            }
         }
         // Inbox filter functions
         function toggleInboxFilter() {
