@@ -313,22 +313,29 @@
 
         {{-- CHAT AREA --}}
         <div
-            class="flex-1 flex bg-[#f7f8fa] relative"
+            class="flex-1 flex flex-col bg-[#f7f8fa] relative"
             id="main-content"
         >
 
-            <button id="open-context-panel-button" onclick="toggleContextPanel()" style="display:none;" class="hidden absolute right-4 top-4 z-20 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                </svg>
-                Details
-            </button>
+            {{-- CONVERSATION HEADER (Full-width) --}}
+            <div id="conversation-header" class="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-4 py-4 shadow-sm">
+                {{-- Header content will be loaded here by JavaScript --}}
+            </div>
 
-            {{-- CHAT CONTAINER --}}
-            <div
-                class="flex-1 flex flex-col"
-                id="chat-area"
-            >
+            {{-- CONTENT AREA (Chat + Context Panel side by side) --}}
+            <div class="flex-1 flex overflow-hidden relative">
+                <button id="open-context-panel-button" onclick="toggleContextPanel()" style="display:none;" class="hidden absolute right-4 top-4 z-20 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    </svg>
+                    Details
+                </button>
+
+                {{-- CHAT CONTAINER --}}
+                <div
+                    class="flex-1 flex flex-col bg-gray-50 dark:bg-gray-900"
+                    id="chat-area"
+                >
 
             {{-- EMPTY STATE --}}
             <div class="h-full flex items-center justify-center">
@@ -495,6 +502,10 @@
 
         </div>
 
+            </div>  {{-- End of flex container (chat-area + context-panel) --}}
+
+        </div>  {{-- End of main-content --}}
+
     </div>
 
     <div id="image-preview-modal" class="hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
@@ -577,6 +588,9 @@
 
                 document.getElementById('chat-area').innerHTML =
                     data.html;
+
+                // Render the conversation header (full-width)
+                renderConversationHeader(data.ticket);
 
                 // Update context panel with ticket data and ensure it is visible
                 updateContextPanel(data.ticket);
@@ -2138,6 +2152,94 @@
                 "'": '&#039;'
             };
             return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        // Render conversation header (full-width, spanning chat + context panel)
+        function renderConversationHeader(ticket) {
+            const header = document.getElementById('conversation-header');
+            if (!header) return;
+
+            const channelIcon = ticket.channel === 'messenger'
+                ? '<i class="fab fa-facebook-messenger fa-lg"></i>'
+                : ticket.channel === 'comment'
+                    ? '<i class="fas fa-comment fa-lg"></i>'
+                    : escapeHtml((ticket.customer_name || ticket.customer_facebook_id || 'U').charAt(0).toUpperCase());
+
+            const customerLink = ticket.customer_facebook_id
+                ? `<a href="https://www.facebook.com/profile.php?id=${escapeHtml(ticket.customer_facebook_id)}" target="_blank" rel="noopener noreferrer" class="hover:text-blue-600 dark:hover:text-blue-300 transition">${escapeHtml(ticket.customer_name || ticket.customer_facebook_id)}</a>`
+                : escapeHtml(ticket.customer_name || ticket.customer_facebook_id);
+
+            const pageLink = ticket.facebook_page_name
+                ? `<a href="https://www.facebook.com/${escapeHtml(ticket.facebook_page_id || '')}" target="_blank" class="hover:text-blue-600 dark:hover:text-blue-300 transition">${escapeHtml(ticket.facebook_page_name)}</a>`
+                : '';
+
+            const postLink = ticket.channel === 'comment' && ticket.facebook_post_id
+                ? `<span class="font-semibold">•</span><a href="https://www.facebook.com/${escapeHtml(ticket.facebook_post_id)}" target="_blank" rel="noopener noreferrer" class="hover:text-blue-600 dark:hover:text-blue-300 transition">View post</a>`
+                : '';
+
+            header.innerHTML = `
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div class="flex items-start gap-4">
+                        <div class="shrink-0">
+                            <div class="h-12 w-12 rounded-full bg-gradient-to-r from-[#1877f2] to-[#42a5f5] text-white flex items-center justify-center font-bold text-lg shadow-sm">
+                                ${channelIcon}
+                            </div>
+                        </div>
+                        <div class="space-y-2">
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:gap-3 gap-1">
+                                <h3 class="font-semibold text-gray-900 dark:text-gray-100 text-base sm:text-lg truncate">
+                                    ${customerLink}
+                                </h3>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-3 text-sm">
+                                ${pageLink ? `<a href="https://www.facebook.com/${escapeHtml(ticket.facebook_page_id || '')}" target="_blank" class="inline-flex items-center gap-1.5 text-blue-600 dark:text-blue-400 font-semibold hover:text-blue-700 dark:hover:text-blue-300 transition"><i class="fab fa-facebook"></i><span>Page: ${escapeHtml(ticket.facebook_page_name)}</span></a>` : ''}
+                                ${postLink}
+                            </div>
+                            <div class="flex flex-wrap items-center gap-3 text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                <span class="font-semibold text-gray-700 dark:text-gray-200">Ticket:</span>
+                                <span>#${escapeHtml(String(ticket.id))}</span>
+                                <span class="font-semibold text-gray-700 dark:text-gray-200">Created:</span>
+                                <span>${new Date(ticket.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="sm:w-[320px]">
+                        <div class="flex gap-2">
+                            <button id="show-files-btn" type="button" class="flex-1 h-10 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 text-sm font-semibold text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800 transition" onclick="showFilesPanel()">📎 Attachments</button>
+                            <button id="show-logs-btn" type="button" class="flex-1 h-10 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 text-sm font-semibold text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-800 transition" onclick="showLogsPanel()">📝 Events</button>
+                        </div>
+                        <div class="mt-2 grid gap-2 sm:grid-cols-3">
+                            <select id="ticket-status" class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-500 transition">
+                                <option value="open" ${ticket.status === 'open' ? 'selected' : ''}>Open</option>
+                                <option value="waiting" ${ticket.status === 'waiting' ? 'selected' : ''}>Waiting</option>
+                                <option value="solved" ${ticket.status === 'solved' ? 'selected' : ''}>Solved</option>
+                                <option value="closed" ${ticket.status === 'closed' ? 'selected' : ''}>Closed</option>
+                            </select>
+                            <select id="ticket-priority" class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-500 transition">
+                                <option value="low" ${ticket.priority === 'low' ? 'selected' : ''}>Low</option>
+                                <option value="medium" ${ticket.priority === 'medium' ? 'selected' : ''}>Medium</option>
+                                <option value="high" ${ticket.priority === 'high' ? 'selected' : ''}>High</option>
+                                <option value="urgent" ${ticket.priority === 'urgent' ? 'selected' : ''}>Urgent</option>
+                            </select>
+                            <select id="ticket-agent" class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 dark:focus:ring-blue-500 transition">
+                                <option value="">Unassigned</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Re-bind ticket controls after header is rendered
+            bindTicketControls();
+
+            // Populate agent select
+            const agentSelect = document.getElementById('ticket-agent');
+            if (agentSelect && ticket.agents && Array.isArray(ticket.agents)) {
+                agentSelect.innerHTML = '<option value="">Unassigned</option>' +
+                    ticket.agents.map(agent =>
+                        `<option value="${agent.id}" ${ticket.assigned_to === agent.id ? 'selected' : ''}>${escapeHtml(agent.name)}</option>`
+                    ).join('');
+            }
         }
 
     </script>

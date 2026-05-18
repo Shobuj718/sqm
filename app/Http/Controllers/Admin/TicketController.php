@@ -122,13 +122,19 @@ class TicketController extends Controller
                 'ticket' => [
                     'id' => $ticket->id,
                     'customer_name' => $ticket->customer_name,
+                    'customer_facebook_id' => $ticket->customer_facebook_id,
                     'channel' => $ticket->channel,
+                    'facebook_page_id' => optional($ticket->facebookPage)->page_id,
                     'facebook_page_name' => optional($ticket->facebookPage)->page_name,
                     'facebook_post_id' => $ticket->facebook_post_id,
                     'post_link' => $ticket->facebook_post_id ? 'https://www.facebook.com/' . $ticket->facebook_post_id : null,
+                    'status' => $ticket->status,
+                    'priority' => $ticket->priority,
+                    'assigned_to' => $ticket->assigned_to,
                     'summary' => $ticket->summary ?? $ticket->subject ?? $ticket->initial_message,
                     'created_at' => optional($ticket->created_at)->toIso8601String(),
                     'agent_name' => optional($ticket->assignedAgent)->name,
+                    'agents' => $agents->map(fn($a) => ['id' => $a->id, 'name' => $a->name])->toArray(),
                     'tags' => $ticket->tags->map(function ($tag) {
                         return [
                             'id' => $tag->id,

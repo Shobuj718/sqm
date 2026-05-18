@@ -10,9 +10,8 @@
                                 :active="request()->routeIs('dashboard*')">Dashboard</x-layouts.sidebar-link>
 
                             @if(auth()->check() && auth()->user()->hasRole('admin'))
-                                <!-- Admin area visible only for admin users -->
-                                <x-layouts.sidebar-two-level-link-parent title="User Management" icon="fas-users"
-                                    :active="request()->routeIs('admin*')">
+                                <x-layouts.sidebar-two-level-link-parent title="Access Control" icon="fas-users"
+                                    :active="request()->routeIs('admin.users*') || request()->routeIs('admin.roles*') || request()->routeIs('admin.permissions*')">
                                     <x-layouts.sidebar-two-level-link href="{{ route('admin.users.index') }}" icon='fas-user-friends'
                                         :active="request()->routeIs('admin.users*')">Users</x-layouts.sidebar-two-level-link>
                                     <x-layouts.sidebar-two-level-link href="{{ route('admin.roles') }}" icon='fas-user-tag'
@@ -22,45 +21,44 @@
                                 </x-layouts.sidebar-two-level-link-parent>
                             @endif
 
-                            @if(auth()->check() && auth()->user()->hasPermission('view-pages'))
-                                <x-layouts.sidebar-link href="{{ route('pages') }}" icon='fas-file-alt'
-                                    :active="request()->routeIs('pages*')">Pages</x-layouts.sidebar-link>
+                            @if(auth()->check() && (auth()->user()->hasPermission('view-pages') || auth()->user()->hasPermission('pages-queue')))
+                                <x-layouts.sidebar-two-level-link-parent title="Page Management" icon="fas-file-alt"
+                                    :active="request()->routeIs('pages*') || request()->routeIs('fbpages*') || request()->routeIs('support-queues*')">
+                                    @if(auth()->user()->hasPermission('view-pages'))
+                                        <x-layouts.sidebar-two-level-link href="{{ route('pages') }}" icon='fas-file-alt'
+                                            :active="request()->routeIs('pages*') || request()->routeIs('fbpages*')">Pages</x-layouts.sidebar-two-level-link>
+                                    @endif
+                                    @if(auth()->user()->hasPermission('pages-queue'))
+                                        <x-layouts.sidebar-two-level-link href="{{ route('support-queues.index') }}" icon='fas-tasks'
+                                            :active="request()->routeIs('support-queues*')">Page Queue</x-layouts.sidebar-two-level-link>
+                                    @endif
+                                </x-layouts.sidebar-two-level-link-parent>
                             @endif
 
-                            @if(auth()->check() && auth()->user()->hasPermission('pages-queue'))
-                                <x-layouts.sidebar-link href="{{ route('support-queues.index') }}" icon='fas-tasks'
-                                    :active="request()->routeIs('support-queues*')">Pages Queue</x-layouts.sidebar-link>
-                            @endif
-
-                            @if(auth()->check() && auth()->user()->hasPermission('support-ticket'))
-                                 <x-layouts.sidebar-link href="{{ route('all-tickets') }}" icon='fas-ticket-alt'
-                                    :active="request()->routeIs('all-tickets')">Tickets</x-layouts.sidebar-link>
+                            @if(auth()->check() && (auth()->user()->hasPermission('support-ticket') || auth()->user()->hasRole('admin')))
+                                <x-layouts.sidebar-two-level-link-parent title="Support Center" icon="fas-comments"
+                                    :active="request()->routeIs('tickets*') || request()->routeIs('all-tickets') || request()->routeIs('rag*')">
+                                    @if(auth()->user()->hasPermission('support-ticket'))
+                                        <x-layouts.sidebar-two-level-link href="{{ route('tickets.index') }}" icon='fas-comments'
+                                            :active="request()->routeIs('tickets.index') || request()->routeIs('tickets.show') || request()->routeIs('tickets.getMessages')">Conversations</x-layouts.sidebar-two-level-link>
+                                        <x-layouts.sidebar-two-level-link href="{{ route('all-tickets') }}" icon='fas-ticket-alt'
+                                            :active="request()->routeIs('all-tickets')">Tickets</x-layouts.sidebar-two-level-link>
+                                    @endif
+                                    @if(auth()->user()->hasRole('admin'))
+                                        <x-layouts.sidebar-two-level-link href="{{ route('rag.index') }}" icon='fas-book-open'
+                                            :active="request()->routeIs('rag*')">Knowledge Base</x-layouts.sidebar-two-level-link>
+                                    @endif
+                                </x-layouts.sidebar-two-level-link-parent>
                             @endif
 
                             @if(auth()->check() && auth()->user()->hasRole(['admin', 'manager']))
-                                <x-layouts.sidebar-link href="{{ route('reports.agent-performance') }}" icon='fas-chart-line'
-                                    :active="request()->routeIs('reports.agent-performance*')">Agent Report</x-layouts.sidebar-link>
-                                <x-layouts.sidebar-link href="{{ route('reports.page-performance') }}" icon='fas-chart-pie'
-                                    :active="request()->routeIs('reports.page-performance*')">Page Report</x-layouts.sidebar-link>
-                            @endif
-
-                            @if(auth()->check() && auth()->user()->hasRole('admin'))
-                                <x-layouts.sidebar-link href="{{ route('rag.index') }}" icon='fas-book-open'
-                                    :active="request()->routeIs('rag*')">Knowledge Base</x-layouts.sidebar-link>
-                            @endif
-
-
-
-                            @if(auth()->check() &&  auth()->user()->hasPermission('support-ticket'))
-                                <x-layouts.sidebar-link
-                                    href="{{ route('tickets.index') }}"
-                                    icon='fas-comments'
-                                    :active="request()->routeIs('tickets*')">
-
-                                    <span class="flex items-center">
-                                        Conversations
-                                    </span>
-                                </x-layouts.sidebar-link>
+                                <x-layouts.sidebar-two-level-link-parent title="Analytics" icon="fas-chart-line"
+                                    :active="request()->routeIs('reports.agent-performance*') || request()->routeIs('reports.page-performance*')">
+                                    <x-layouts.sidebar-two-level-link href="{{ route('reports.agent-performance') }}" icon='fas-chart-line'
+                                        :active="request()->routeIs('reports.agent-performance*')">Agent Analytics</x-layouts.sidebar-two-level-link>
+                                    <x-layouts.sidebar-two-level-link href="{{ route('reports.page-performance') }}" icon='fas-chart-pie'
+                                        :active="request()->routeIs('reports.page-performance*')">Page Analytics</x-layouts.sidebar-two-level-link>
+                                </x-layouts.sidebar-two-level-link-parent>
                             @endif
 
                             {{--
